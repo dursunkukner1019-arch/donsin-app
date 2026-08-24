@@ -24,14 +24,19 @@ class DonSinSecEngine:
         return keys, trace_data
 
     def encrypt(self, text):
-        keys, trace = self.generate_trace(len(text))
-        encrypted_bytes = [ord(char) ^ (key % 256) for char, key in zip(text, keys)]
-        return encrypted_bytes.hex(), trace
+        raw_bytes = text.encode("utf-8")
+        keys, trace = self.generate_trace(len(raw_bytes))
+        encrypted_bytes = [b ^ (key % 256) for b, key in zip(raw_bytes, keys)]
+        return bytes(encrypted_bytes).hex(), trace, len(raw_bytes)
 
-    def decrypt(self, hex_str, length):
-        encrypted_bytes = list(bytes.fromhex(hex_str))
-        keys, _ = self.generate_trace(length)
-        return "".join([chr(b ^ (k % 256)) for b, k in zip(encrypted_bytes, keys)])
+    def decrypt(self, hex_str):
+        try:
+            encrypted_bytes = bytes.fromhex(hex_str)
+            keys, _ = self.generate_trace(len(encrypted_bytes))
+            decrypted_bytes = [b ^ (k % 256) for b, k in zip(encrypted_bytes, keys)]
+            return bytes(decrypted_bytes).decode("utf-8")
+        except Exception as e:
+            return None
 
 st.set_page_config(page_title="DÖN-SİN Security", page_icon="🔐")
 st.title("🔐 DÖN-SİN Kriptografik Güvenlik Platformu")
@@ -40,18 +45,23 @@ engine = DonSinSecEngine()
 tab1, tab2 = st.tabs(["🔒 Şifrele", "🔓 Şifre Çöz"])
 
 with tab1:
-    user_input = st.text_input("Şifrelenecek Mesaj:", "DÖN-SİN Telefonda Canlı!")
+    user_input = st.text_input("Şifrelenecek Mesaj:", "DÖN-SİN Başarıyla Çalışıyor!")
     if st.button("Şifrele"):
-        hex_output, trace = engine.encrypt(user_input)
+        hex_output, trace, byte_len = engine.encrypt(user_input)
         st.success("Başarıyla Şifrelendi!")
+        st.write("**Şifreli Kod (Hex):**")
         st.code(hex_output)
+        st.info(f"💡 Şifreyi çözerken uzunluk girmeniz gerekmez (Bayt Boyutu: {byte_len})")
         st.dataframe(pd.DataFrame(trace))
 
 with tab2:
     hex_input = st.text_input("Şifreli Kodu Girin:")
-    msg_len = st.number_input("Karakter Uzunluğu:", min_value=1, value=23)
     if st.button("Şifreyi Çöz"):
-        try:
-            st.info(f"Çözülen Mesaj: {engine.decrypt(hex_input, msg_len)}")
-        except:
-            st.error("Hatalı kod!")
+        if hex_input:
+            result = engine.decrypt(hex_input.strip())
+            if result:
+                st.success(f"Çözülen Mesaj: {result}")
+            else:
+                st.error("Hatalı kod veya geçersiz veri!")
+        else:
+            st.warning("Lütfen şifreli bir kod girin.")
