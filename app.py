@@ -1,115 +1,108 @@
 from decimal import Decimal, getcontext
-import json
 import streamlit as st
 
 st.set_page_config(
-    page_title="KÜKNER-1923 Crypto Studio Pro",
-    page_icon="🔐",
-    layout="wide",
+    page_title="KÜKNER Pİ × 1923 Şifreleme", page_icon="🔐", layout="centered"
 )
 
-st.title("🔐 KÜKNER-1923 Metin Şifreleme ve Çözme Arayüzü")
-st.markdown("---")
-
-
-class Kukner1923Crypto:
-
-    def __init__(self, precision=300):
-        getcontext().prec = precision
-        self.p1 = Decimal(243)
-        self.p2 = Decimal(49)
-        self.multiplier = Decimal(1923)
-
-        k1 = (Decimal(100) / self.p1) - int(Decimal(100) / self.p1)
-        k2 = (Decimal(100) / self.p2) - int(Decimal(100) / self.p2)
-        self.initial_state = k1 + k2
-
-    def generate_keystream(self, length=378):
-        current_state = self.initial_state
-        keystream = []
-        for _ in range(length):
-            product = current_state * self.multiplier
-            integer_part = int(product)
-            fractional_part = product - integer_part
-            keystream.append(integer_part)
-            current_state = fractional_part
-        return keystream
-
-    def encrypt(self, text):
-        keystream = self.generate_keystream(len(text))
-        encrypted_bytes = []
-        for i, char in enumerate(text):
-            key_byte = keystream[i] % 256
-            encrypted_bytes.append(ord(char) ^ key_byte)
-        return encrypted_bytes
-
-    def decrypt(self, encrypted_bytes):
-        keystream = self.generate_keystream(len(encrypted_bytes))
-        decrypted_chars = []
-        for i, byte in enumerate(encrypted_bytes):
-            key_byte = keystream[i] % 256
-            decrypted_chars.append(chr(byte ^ key_byte))
-        return "".join(decrypted_chars)
-
-
-kukner = Kukner1923Crypto()
-
-# Yan Panel Bilgisi
-st.sidebar.header("⚙️ KÜKNER-1923 Bilgileri")
-st.sidebar.info(
-    "**Döngü Periyodu:** 378 Adım\n\n"
-    "**Sabit Kök:** 7577\n\n"
-    "**Çarpan:** 1923\n\n"
-    "Bu panel üzerinden metinlerinizi güvenle şifreleyebilir veya şifrelenmiş"
-    " verileri çözebilirsiniz."
+st.title("🔐 KÜKNER Pİ × 1923 Akış Şifreleme Uygulaması")
+st.markdown(
+    """
+Bu uygulama, irrasyonel **Pi ($\pi$)** tabanlı hassas bölme ve **1923** çarpanıyla 
+iteratif olarak büyüyen kesintisiz, tekrarsız akış (keystream) mantığını kullanır.
+"""
 )
 
-tab1, tab2 = st.tabs(
-    ["🔒 Metin Şifrele (Encrypt)", "🔓 Şifre Çöz (Decrypt)"]
+# Kenar Çubuğu Ayarları
+st.sidebar.header("Algoritma Parametreleri")
+precision = st.sidebar.slider(
+    "Pi Hassasiyeti (Basamak Sayısı)",
+    min_value=100,
+    max_value=3000,
+    value=1000,
+    step=100,
+    help="Virgülden sonra kaç basamak hassasiyetle hesaplanacağını belirler.",
+)
+multiplier = st.sidebar.number_input(
+    "Çarpan (Anahtar)", value=1923, step=1, format="%d"
 )
 
-# 1. SEKME: METİN ŞİFRELEME
+
+# KÜKNER Pİ × 1923 Akış Üreteci Fonksiyonu
+def generate_kukner_keystream(digits, mult):
+  # Hassasiyet sınırını ayarla
+  getcontext().prec = digits + 10
+
+  # Chudnovsky algoritması ile yüksek hassasiyetli Pi hesaplama
+  C = 426880 * Decimal(10005).sqrt()
+  K = Decimal(6)
+  M = Decimal(1)
+  L = Decimal(13591409)
+  X = Decimal(1)
+  S = L
+
+  for k in range(1, int(digits / 14) + 1):
+    M = M * (K**3 - 16 * K) / (Decimal(k) ** 3)
+    L += 545140134
+    X *= -262537412640768000
+    S += (M * L) / X
+    K += 12
+
+  pi_val = C / S
+
+  # KÜKNER Pİ × 1923 formül mantığı
+  calculation_result = (Decimal(100) / pi_val) * Decimal(mult)
+
+  str_val = str(calculation_result)
+  if "." in str_val:
+    fractional_part = str_val.split(".")[1]
+  else:
+    fractional_part = str_val
+
+  return fractional_part
+
+
+# Arayüz Sekmeleri
+tab1, tab2 = st.tabs(["🔒 Metin Şifreleme / Çözme", "📊 Akış ve Entropi İncelemesi"])
+
 with tab1:
-    st.markdown("### Düz Metni KÜKNER-1923 ile Şifreleyin")
-    metin_girdi = st.text_area(
-        "Şifrelenecek Düz Metni Girin",
-        value="46162217723898",
-        height=100,
-    )
+  st.subheader("KÜKNER Pİ × 1923 ile Metin Şifreleme")
+  text_input = st.text_area(
+      "Şifrelenecek Metni Girin:",
+      placeholder="Gizli mesajınızı buraya yazın...",
+  )
 
-    if st.button(" Metni Şifrele", type="primary"):
-        if metin_girdi:
-            sifreli_baytlar = kukner.encrypt(metin_girdi)
-            st.success("Metin başarıyla şifrelendi!")
+  if st.button("Mesajı İşle / Şifrele"):
+    if text_input:
+      with st.spinner("KÜKNER Pİ × 1923 anahtar akışı üretiliyor..."):
+        keystream = generate_kukner_keystream(precision, multiplier)
 
-            # Kopyalanabilir çıktı formatı
-            st.markdown("**Şifreli Veri (Şifre Çözme Sekmesine Kopyalayın):**")
-            st.code(json.dumps(sifreli_baytlar), language="json")
-        else:
-            st.warning("Lütfen bir metin girin.")
+        # Stream Cipher (XOR / Karakter Kaydırma) mantığı
+        encrypted_chars = []
+        for i, char in enumerate(text_input):
+          key_char_code = int(keystream[i % len(keystream)])
+          encrypted_code = ord(char) + key_char_code
+          encrypted_chars.append(chr(encrypted_code))
 
-# 2. SEKME: BİRBİRİNDEN BAĞIMSIZ ŞİFRE ÇÖZME
+        encrypted_text = "".join(encrypted_chars)
+
+      st.success("Şifreleme Başarıyla Tamamlandı!")
+      st.text_area(
+          "Şifrelenmiş Çıktı (Ciphertext):",
+          value=encrypted_text,
+          height=100,
+      )
+    else:
+      st.warning("Lütfen şifrelenecek bir metin girin.")
+
 with tab2:
-    st.markdown("### KÜKNER-1923 Şifreli Veriyi Çözün")
-    sifreli_girdi = st.text_area(
-        "Şifreli Bayt Dizisini Yapıştırın (Örn: [81, 104, 131, ...])",
-        height=100,
-    )
+  st.subheader("Üretilen Sayısal Akış Verisi")
+  st.markdown(
+      "Aşağıda **KÜKNER Pİ × 1923** algoritmasıyla üretilen tekrarsız ve"
+      " kesintisiz küsurat dizisinin bir kısmı yer almaktadır:"
+  )
 
-    if st.button("🔓 Şifreyi Çöz", type="primary"):
-        if sifreli_girdi:
-            try:
-                # Girdiyi liste formatına dönüştür
-                bayt_listesi = json.loads(sifreli_girdi)
-                cozulmus_sonuc = kukner.decrypt(bayt_listesi)
-
-                st.success("Şifre Başarıyla Çözüldü!")
-                st.markdown("**Orijinal Metin:**")
-                st.info(cozulmus_sonuc)
-            except Exception as e:
-                st.error(
-                    "Geçersiz şifreli dizi formatı! Lütfen tam köşeli parantezli"
-                    " liste yapıştırın. Örn: [81, 104, 131]"
-                )
-        else:
-            st.warning("Lütfen şifreli veri yapıştırın.")
+  if st.button("Akış Verisini Göster"):
+    stream = generate_kukner_keystream(precision, multiplier)
+    st.code(stream[:1000], language="text")
+    st.info(f"Toplam üretilen güvenli basamak uzunluğu: {len(stream)} karakter.")
