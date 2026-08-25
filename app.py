@@ -16,23 +16,41 @@ st.markdown("""
 # 100 / 3⁵ × 19 Matematiksel Sabiti
 FACTOR = (100 / (3 ** 5)) * 19  # ≈ 7.818930041152263
 
-# Standart Ebced Değerleri Tablosu
-EBCED_TABLOSU = {
-    'ا': 1, 'أ': 1, 'إ': 1, 'آ': 1, 'ب': 2, 'ج': 3, 'د': 4, 'ه': 5, 'و': 6, 'ز': 7, 
+# 1. Standart Arapça/Osmanlıca Ebced Tablosu
+EBCED_ARAPCA = {
+    'ا': 1, 'أ': 1, 'إ': 1, 'آ': 1, 'ء': 1, 'ب': 2, 'ج': 3, 'د': 4, 'ه': 5, 'و': 6, 'ز': 7, 
     'ح': 8, 'ط': 9, 'ي': 10, 'ى': 10, 'ك': 20, 'ل': 30, 'م': 40, 'ن': 50, 'س': 60, 
     'ع': 70, 'ف': 80, 'ص': 90, 'ق': 100, 'ر': 200, 'ش': 300, 'ت': 400, 'ث': 500, 
     'خ': 600, 'ذ': 700, 'ض': 800, 'ظ': 900, 'غ': 1000, 'پ': 2, 'چ': 3, 'ژ': 7, 'گ': 20
 }
 
-def ebced_hesapla(metin: str):
-    """Girilen metindeki Arapça/Osmanlıca harflerin Ebced değerini hesaplar."""
+# 2. Türkçe/Latin Harflerin Osmanlıca Phonetic Ebced Haritası
+EBCED_TURKCE = {
+    'a': 1, 'b': 2, 'c': 3, 'ç': 3, 'd': 4, 'e': 5, 'f': 80, 'g': 20, 'ğ': 1000,
+    'h': 8, 'ı': 10, 'i': 10, 'j': 7, 'k': 20, 'l': 30, 'm': 40, 'n': 50, 'o': 6,
+    'ö': 6, 'p': 2, 'r': 200, 's': 60, 'ş': 300, 't': 400, 'u': 6, 'ü': 6, 'v': 6,
+    'y': 10, 'z': 7
+}
+
+def gelismis_ebced_hesapla(metin: str):
+    """Türkçe, Osmanlıca ve Arapça metinleri ayırt ederek Ebced değerini hesaplar."""
     toplam = 0
     detaylar = []
-    for harf in metin:
-        if harf in EBCED_TABLOSU:
-            deger = EBCED_TABLOSU[harf]
+    
+    metin_lower = metin.strip().lower()
+    
+    for harf in metin_lower:
+        # Önce Arapça/Osmanlıca karakter kontrolü
+        if harf in EBCED_ARAPCA:
+            deger = EBCED_ARAPCA[harf]
             toplam += deger
             detaylar.append(f"{harf}: {deger}")
+        # Türkçe / Latin karakter kontrolü
+        elif harf in EBCED_TURKCE:
+            deger = EBCED_TURKCE[harf]
+            toplam += deger
+            detaylar.append(f"{harf.upper()}: {deger}")
+            
     return toplam, detaylar
 
 def process_bytes(data: bytes) -> bytes:
@@ -50,7 +68,6 @@ def generate_audio_digital(text_data: str):
     
     sample_rate = 8000
     samples_per_byte = 50
-    
     audio_samples = []
     
     for b in raw_bytes:
@@ -99,9 +116,9 @@ def decode_audio_digital(wav_bytes: bytes) -> str:
 
 # Başlık
 st.title("🎙️ MathCrypt Audio Studio Pro")
-st.caption("Kayıpsız Ses Şifreleme, Çözme ve Ebced Analiz Sistemi")
+st.caption("Kayıpsız Ses Şifreleme, Çözme ve Çok Dilli Ebced Analiz Sistemi")
 
-tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "🕌 Ebced Hesabı", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
+tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "🕌 Ebced Hesabı (TR/AR/OSM)", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
 
 # ---------------------------------------------------------
 # TAB 1: SES ÜRET VE İNDİR
@@ -113,10 +130,8 @@ with tabs[0]:
     if st.button("🔊 Ses Sinyali Üret ve İndirme Bağlantısı Hazırla", key="b_gen"):
         if audio_in.strip():
             wav_data = generate_audio_digital(audio_in)
-            
             st.success("Ses Sinyali Hazır!")
             st.audio(wav_data, format="audio/wav")
-            
             st.download_button(
                 label="📥 Ses Dosyasını İndir (.wav)",
                 data=wav_data,
@@ -136,7 +151,6 @@ with tabs[1]:
         if uploaded_sound is not None:
             sound_bytes = uploaded_sound.read()
             result_text = decode_audio_digital(sound_bytes)
-            
             st.success("Çözme İşlemi Tamamlandı!")
             st.markdown("**Çözülen Metin:**")
             st.code(result_text, language="text")
@@ -144,27 +158,27 @@ with tabs[1]:
             st.warning("Lütfen bir .wav dosyası yükleyin.")
 
 # ---------------------------------------------------------
-# TAB 3: EBCED HESABI (YENİ MODÜL)
+# TAB 3: GELİŞMİŞ EBCED HESABI (TÜRKÇE / ARAPÇA / OSMANLICA)
 # ---------------------------------------------------------
 with tabs[2]:
-    st.subheader("🕌 Ebced Değeri Hesaplayıcı")
-    st.write("Arapça veya Osmanlıca metinlerin sayısal Ebced karşılığını hesaplar.")
+    st.subheader("🕌 Çok Dilli Ebced Değeri Hesaplayıcı")
+    st.write("Türkçe (Latin), Osmanlıca veya Arapça fark etmeksizin girilen tüm kelimelerin Ebced skorunu anında hesaplar.")
     
-    ebced_in = st.text_area("Ebced hesabı yapılacak Arapça/Osmanlıca metni girin:", value="علي", key="e_in")
+    ebced_in = st.text_area("Ebced hesabı yapılacak kelime veya cümleyi girin:", value="Ahmet", key="e_in")
     
     if st.button("🧮 Ebced Değerini Hesapla", key="b_ebced"):
         if ebced_in.strip():
-            toplam_skor, harf_detaylari = ebced_hesapla(ebced_in)
+            toplam_skor, harf_detaylari = gelismis_ebced_hesapla(ebced_in)
             
-            st.success(f"Toplam Ebced Değeri: {toplam_skor}")
+            st.success(f"Girdi: '{ebced_in}' | Toplam Ebced Değeri: {toplam_skor}")
             
             if harf_detaylari:
-                st.markdown("**Harf Analizi:**")
-                st.write(", ".join(harf_detaylari))
+                st.markdown("**Harf Harf Ebced Dökümü:**")
+                st.code(" + ".join(harf_detaylari) + f" = {toplam_skor}", language="text")
             else:
-                st.warning("Metinde geçerli bir Arapça/Osmanlıca karakter bulunamadı.")
+                st.warning("Hesaplanabilir geçerli bir karakter bulunamadı.")
         else:
-            st.warning("Lütfen bir metin girin.")
+            st.warning("Lütfen bir kelime girin.")
 
 # ---------------------------------------------------------
 # TAB 4: METİN ŞİFRELEME
