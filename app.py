@@ -2,21 +2,51 @@ import streamlit as st
 import base64
 import struct
 
-# Sayfa Yapılandırması
-st.set_page_config(page_title="MathCrypt Voice Studio", page_icon="🎙️", layout="wide")
+# ==========================================
+# SAYFA VE TEMA YAPILANDIRMASI
+# ==========================================
+st.set_page_config(
+    page_title="KÜKNER Crypto Studio Pro",
+    page_icon="🦅",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# Görsel Stil Entegrasyonu (Modern KÜKNER Teması)
 st.markdown("""
 <style>
-    .main { background-color: #0e1117; }
-    .stButton>button { background-color: #00d2ff; color: #000; font-weight: bold; border-radius: 6px; width: 100%; }
-    .stButton>button:hover { background-color: #0087ff; color: #fff; box-shadow: 0 0 10px #00d2ff; }
+    .main { background-color: #0b0e14; }
+    .stButton>button { 
+        background-color: #00d2ff; 
+        color: #000; 
+        font-weight: bold; 
+        border-radius: 8px; 
+        width: 100%;
+        border: none;
+        padding: 0.6rem 1rem;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover { 
+        background-color: #0087ff; 
+        color: #fff; 
+        box-shadow: 0 0 12px rgba(0, 210, 255, 0.6); 
+    }
+    .kukner-card {
+        background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # 100 / 3⁵ × 19 Matematiksel Sabiti
 FACTOR = (100 / (3 ** 5)) * 19  # ≈ 7.818930041152263
 
-# 1. Standart Arapça/Osmanlıca Ebced Tablosu
+# ==========================================
+# EBCED TABLOLARI (TR / AR / OSM)
+# ==========================================
 EBCED_ARAPCA = {
     'ا': 1, 'أ': 1, 'إ': 1, 'آ': 1, 'ء': 1, 'ب': 2, 'ج': 3, 'د': 4, 'ه': 5, 'و': 6, 'ز': 7, 
     'ح': 8, 'ط': 9, 'ي': 10, 'ى': 10, 'ك': 20, 'ل': 30, 'م': 40, 'ن': 50, 'س': 60, 
@@ -24,7 +54,6 @@ EBCED_ARAPCA = {
     'خ': 600, 'ذ': 700, 'ض': 800, 'ظ': 900, 'غ': 1000, 'پ': 2, 'چ': 3, 'ژ': 7, 'گ': 20
 }
 
-# 2. Türkçe/Latin Harflerin Osmanlıca Phonetic Ebced Haritası
 EBCED_TURKCE = {
     'a': 1, 'b': 2, 'c': 3, 'ç': 3, 'd': 4, 'e': 5, 'f': 80, 'g': 20, 'ğ': 1000,
     'h': 8, 'ı': 10, 'i': 10, 'j': 7, 'k': 20, 'l': 30, 'm': 40, 'n': 50, 'o': 6,
@@ -32,27 +61,9 @@ EBCED_TURKCE = {
     'y': 10, 'z': 7
 }
 
-def gelismis_ebced_hesapla(metin: str):
-    """Türkçe, Osmanlıca ve Arapça metinleri ayırt ederek Ebced değerini hesaplar."""
-    toplam = 0
-    detaylar = []
-    
-    metin_lower = metin.strip().lower()
-    
-    for harf in metin_lower:
-        # Önce Arapça/Osmanlıca karakter kontrolü
-        if harf in EBCED_ARAPCA:
-            deger = EBCED_ARAPCA[harf]
-            toplam += deger
-            detaylar.append(f"{harf}: {deger}")
-        # Türkçe / Latin karakter kontrolü
-        elif harf in EBCED_TURKCE:
-            deger = EBCED_TURKCE[harf]
-            toplam += deger
-            detaylar.append(f"{harf.upper()}: {deger}")
-            
-    return toplam, detaylar
-
+# ==========================================
+# ÇEKİRDEK FONKSİYONLAR
+# ==========================================
 def process_bytes(data: bytes) -> bytes:
     """Tekil XOR döngüsü ile simetrik byte işleme"""
     if not data: return b""
@@ -65,7 +76,6 @@ def process_bytes(data: bytes) -> bytes:
 def generate_audio_digital(text_data: str):
     """Metin verisini %100 kayıpsız dijital ses paketine çevirir"""
     raw_bytes = process_bytes(text_data.encode('utf-8'))
-    
     sample_rate = 8000
     samples_per_byte = 50
     audio_samples = []
@@ -92,7 +102,6 @@ def decode_audio_digital(wav_bytes: bytes) -> str:
     
     samples_per_byte = 50
     raw_audio = wav_bytes[44:]
-    
     samples = []
     for i in range(0, len(raw_audio) - 1, 2):
         val = struct.unpack('<h', raw_audio[i:i+2])[0]
@@ -114,88 +123,156 @@ def decode_audio_digital(wav_bytes: bytes) -> str:
     except Exception:
         return "Şifre çözülemedi."
 
-# Başlık
-st.title("🎙️ MathCrypt Audio Studio Pro")
-st.caption("Kayıpsız Ses Şifreleme, Çözme ve Çok Dilli Ebced Analiz Sistemi")
+def gelismis_ebced_hesapla(metin: str):
+    """Türkçe, Osmanlıca ve Arapça metinlerin Ebced skorunu hesaplar."""
+    toplam = 0
+    detaylar = []
+    for harf in metin.strip().lower():
+        if harf in EBCED_ARAPCA:
+            deger = EBCED_ARAPCA[harf]
+            toplam += deger
+            detaylar.append(f"{harf}: {deger}")
+        elif harf in EBCED_TURKCE:
+            deger = EBCED_TURKCE[harf]
+            toplam += deger
+            detaylar.append(f"{harf.upper()}: {deger}")
+    return toplam, detaylar
 
-tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "🕌 Ebced Hesabı (TR/AR/OSM)", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
+# ==========================================
+# KÜKNER MARKALAMA & YAN MENÜ (SIDEBAR)
+# ==========================================
+with st.sidebar:
+    st.markdown("""
+        <div style="text-align: center; padding: 10px; border-bottom: 2px solid #00d2ff; margin-bottom: 20px;">
+            <h1 style="color: #00d2ff; margin:0; font-size: 28px; font-weight: 900; letter-spacing: 3px;">KÜKNER</h1>
+            <p style="color: #8b949e; margin:0; font-size: 11px; letter-spacing: 1px;">SECURITY & CRYPTO STUDIO</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 🦅 Sistem Özellikleri")
+    st.info("KÜKNER Core: Aktif")
+    st.caption(f"Matematiksel Sabit: {FACTOR:.8f}")
+    st.divider()
+    st.caption("© 2026 KÜKNER Teknolojileri. Tüm hakları saklıdır.")
+
+# ==========================================
+# ANA BAŞLIK
+# ==========================================
+st.title("🦅 KÜKNER Crypto Studio Pro")
+st.caption("Gelişmiş Ses Steganografisi, Kriptografi ve Ebced Analiz Platformu")
+
+# Sekmeler
+tabs = st.tabs([
+    "🎙️ Ses Laboratuvarı (Üretici & Çözücü)", 
+    "📝 Metin Şifreleme / Çözme", 
+    "🕌 Ebced Analizi (TR / AR / OSM)", 
+    "📁 Dosya Kılavuzu & Kilitleme"
+])
 
 # ---------------------------------------------------------
-# TAB 1: SES ÜRET VE İNDİR
+# TAB 1: TEK SAYFADA SES LABORATUVARI (ÜRETİCİ & ÇÖZÜCÜ)
 # ---------------------------------------------------------
 with tabs[0]:
-    st.subheader("🔊 Metni Sese Çevir ve İndir")
-    audio_in = st.text_area("Sese dönüştürülecek metin:", value="Gizli Mesaj 2026", key="a_in")
+    st.subheader("🎙️ Ses Sinyali İşleme Laboratuvarı")
+    st.write("Metinlerinizi ses dalgalarına dönüştürün veya indirdiğiniz ses dosyalarından gizli metni geri okuyun.")
     
-    if st.button("🔊 Ses Sinyali Üret ve İndirme Bağlantısı Hazırla", key="b_gen"):
-        if audio_in.strip():
-            wav_data = generate_audio_digital(audio_in)
-            st.success("Ses Sinyali Hazır!")
-            st.audio(wav_data, format="audio/wav")
-            st.download_button(
-                label="📥 Ses Dosyasını İndir (.wav)",
-                data=wav_data,
-                file_name="secret_audio.wav",
-                mime="audio/wav",
-                key="d_wav"
-            )
+    col_gen, col_dec = st.columns(2)
+    
+    with col_gen:
+        st.markdown("#### 1️⃣ Ses Sinyali Üret & İndir")
+        audio_in = st.text_area("Sese dönüştürülecek metin:", value="KÜKNER Gizli Mesaj 2026", key="a_in", height=120)
+        
+        if st.button("🔊 Ses Dosyası Oluştur", key="b_gen"):
+            if audio_in.strip():
+                wav_data = generate_audio_digital(audio_in)
+                st.success("Ses Sinyali Başarıyla Üretildi!")
+                st.audio(wav_data, format="audio/wav")
+                st.download_button(
+                    label="📥 Ses Dosyasını İndir (.wav)",
+                    data=wav_data,
+                    file_name="kukner_secret_audio.wav",
+                    mime="audio/wav",
+                    key="d_wav"
+                )
+            else:
+                st.warning("Lütfen bir metin girin.")
+
+    with col_dec:
+        st.markdown("#### 2️⃣ Ses Dosyasından Metin Çöz")
+        uploaded_sound = st.file_uploader(".wav Formatında Ses Dosyası Yükleyin:", type=["wav"], key="s_up")
+        
+        if st.button("🔍 Sesi Analiz Et ve Metne Çevir", key="b_dec"):
+            if uploaded_sound is not None:
+                sound_bytes = uploaded_sound.read()
+                result_text = decode_audio_digital(sound_bytes)
+                st.success("Analiz Tamamlandı!")
+                st.markdown("**Çözülen Orijinal Metin:**")
+                st.code(result_text, language="text")
+            else:
+                st.warning("Lütfen önce bir .wav dosyası yükleyin.")
 
 # ---------------------------------------------------------
-# TAB 2: SES ÇÖZÜCÜ
+# TAB 2: METİN ŞİFRELEME (HATASIZ HALE GETİRİLDİ)
 # ---------------------------------------------------------
 with tabs[1]:
-    st.subheader("🎙️ İndirilen Ses Dosyasını Yazıya Çevir")
-    uploaded_sound = st.file_uploader("İndirdiğiniz .wav ses dosyasını yükleyin:", type=["wav"], key="s_up")
+    st.subheader("📝 KÜKNER Simetrik Metin Şifreleme Engine")
     
-    if st.button("🔍 Sesi Metne Dönüştür", key="b_dec"):
-        if uploaded_sound is not None:
-            sound_bytes = uploaded_sound.read()
-            result_text = decode_audio_digital(sound_bytes)
-            st.success("Çözme İşlemi Tamamlandı!")
-            st.markdown("**Çözülen Metin:**")
-            st.code(result_text, language="text")
-        else:
-            st.warning("Lütfen bir .wav dosyası yükleyin.")
+    m1, m2 = st.columns(2)
+    with m1:
+        mode_txt = st.radio("İşlem Türü Seçin", ["Metni Şifrele", "Şifreli Metni Çöz"], key="m_txt")
+        txt_input = st.text_area("Metin Girdisi:", height=150, placeholder="Metninizi yazın...", key="t_in")
+        btn_txt = st.button("İşlemi Başlat", key="b_txt")
+        
+    with m2:
+        if btn_txt and txt_input and txt_input.strip():
+            try:
+                if mode_txt == "Metni Şifrele":
+                    raw_bytes = txt_input.encode('utf-8')
+                    encrypted_bytes = process_bytes(raw_bytes)
+                    result_out = base64.b64encode(encrypted_bytes).decode('utf-8')
+                    st.success("Şifrelenmiş Metin (Base64):")
+                    st.code(result_out, language="text")
+                else:
+                    decoded_base64 = base64.b64decode(txt_input.strip().encode('utf-8'))
+                    decrypted_bytes = process_bytes(decoded_base64)
+                    result_out = decrypted_bytes.decode('utf-8')
+                    st.success("Çözülen Orijinal Metin:")
+                    st.write(result_out)
+            except Exception as ex:
+                st.error("Hata: Girdi formatı çözülemedi! Lütfen şifre çözerken geçerli bir Base64 dizgisi girin.")
 
 # ---------------------------------------------------------
-# TAB 3: GELİŞMİŞ EBCED HESABI (TÜRKÇE / ARAPÇA / OSMANLICA)
+# TAB 3: EBCED ANALİZİ
 # ---------------------------------------------------------
 with tabs[2]:
     st.subheader("🕌 Çok Dilli Ebced Değeri Hesaplayıcı")
-    st.write("Türkçe (Latin), Osmanlıca veya Arapça fark etmeksizin girilen tüm kelimelerin Ebced skorunu anında hesaplar.")
+    st.write("Türkçe (Latin), Osmanlıca ve Arapça kelimelerin Ebced skorunu otomatik hesaplar.")
     
-    ebced_in = st.text_area("Ebced hesabı yapılacak kelime veya cümleyi girin:", value="Ahmet", key="e_in")
-    
-    if st.button("🧮 Ebced Değerini Hesapla", key="b_ebced"):
+    ebced_in = st.text_area("Kelime veya cümle girin:", value="Kükner", key="e_in")
+    if st.button("🧮 Ebced Skorunu Hesapla", key="b_ebced"):
         if ebced_in.strip():
             toplam_skor, harf_detaylari = gelismis_ebced_hesapla(ebced_in)
-            
             st.success(f"Girdi: '{ebced_in}' | Toplam Ebced Değeri: {toplam_skor}")
-            
             if harf_detaylari:
-                st.markdown("**Harf Harf Ebced Dökümü:**")
+                st.markdown("**Harf Detayları:**")
                 st.code(" + ".join(harf_detaylari) + f" = {toplam_skor}", language="text")
-            else:
-                st.warning("Hesaplanabilir geçerli bir karakter bulunamadı.")
         else:
             st.warning("Lütfen bir kelime girin.")
 
 # ---------------------------------------------------------
-# TAB 4: METİN ŞİFRELEME
+# TAB 4: DOSYA KİLİTLEME
 # ---------------------------------------------------------
 with tabs[3]:
-    st.subheader("📝 Standart Metin Şifreleme")
-    txt_in = st.text_area("Metin:", key="t_in")
-    if st.button("Şifrele", key="b_txt") and txt_in.strip():
-        processed = process_bytes(txt_in.encode('utf-8'))
-        st.code(base64.b64encode(processed).decode('utf-8'), language="text")
-
-# ---------------------------------------------------------
-# TAB 5: DOSYA KİLİTLEME
-# ---------------------------------------------------------
-with tabs[4]:
-    st.subheader("📁 Dosya Kilitleme")
-    uploaded = st.file_uploader("Dosya Seç", key="f_up")
-    if st.button("Kilitle/Çöz", key="b_f") and uploaded:
-        processed = process_bytes(uploaded.read())
-        st.download_button("İşlenmiş Dosyayı İndir", processed, file_name=f"locked_{uploaded.name}")
+    st.subheader("📁 Dosya Şifreleme ve Kilit")
+    st.write("Her türlü dosyayı (.pdf, .png, .docx vb.) KÜKNER sabitiyle güvenle kilitleyin veya açın.")
+    
+    uploaded_f = st.file_uploader("Dosya Seçin:", key="f_up")
+    if st.button("Dosyayı İşle (Kilitle / Çöz)", key="b_f") and uploaded_f:
+        file_bytes = uploaded_f.read()
+        processed_file = process_bytes(file_bytes)
+        st.success("Dosya İşleme Başarılı!")
+        st.download_button(
+            label="📥 İşlenmiş Dosyayı İndir", 
+            data=processed_file, 
+            file_name=f"kukner_locked_{uploaded_f.name}"
+        )
