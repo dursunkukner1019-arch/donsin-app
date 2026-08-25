@@ -1,6 +1,5 @@
 import streamlit as st
 import base64
-import math
 import struct
 
 # Sayfa Yapılandırması
@@ -26,28 +25,21 @@ def process_bytes(data: bytes) -> bytes:
         res.append(b ^ ((shift + i) % 256))
     return bytes(res)
 
-def generate_audio_exact(data_bytes: bytes):
-    """Metin verisini %100 geri çözülebilir hassas ses sinyaline dönüştürür"""
-    if not data_bytes: return b"", []
+def generate_audio_digital(text_data: str):
+    """Metin verisini %100 kayıpsız dijital ses paketine çevirir"""
+    raw_bytes = process_bytes(text_data.encode('utf-8'))
     
     sample_rate = 8000
-    samples_per_byte = 100  # Her bayt için 100 sinyal örneği (Kararlılık için)
+    samples_per_byte = 50
     
     audio_samples = []
-    plot_data = []
     
-    for i, b in enumerate(data_bytes):
-        freq = 300 + (b * 5)  # Stabilize edilmiş frekans adımı
-        for s in range(samples_per_byte):
-            t = s / sample_rate
-            val = math.sin(2 * math.pi * freq * t)
-            # Bayt değerini sinyalin genlik/frekans yapısına tam gömüyoruz
-            sample_val = int(val * 20000) + (b * 40)
-            sample_val = max(-32767, min(32767, sample_val))
-            audio_samples.append(sample_val)
-            if i < 2 and s < 100:
-                plot_data.append(val)
-                
+    for b in raw_bytes:
+        # Genlik paketleme: Bayt değerini 16-bit PCM aralığına tam eşle
+        val = int((b - 128) * 200)
+        for _ in range(samples_per_byte):
+            audio_samples.append(val)
+            
     total_samples = len(audio_samples)
     data_size = total_samples * 2
     header = struct.pack('<4sI4s4sIHHIIHH4sI', b'RIFF', 36 + data_size, b'WAVE', b'fmt ', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16, b'data', data_size)
@@ -56,14 +48,14 @@ def generate_audio_exact(data_bytes: bytes):
     for sample in audio_samples:
         pcm_data.extend(struct.pack('<h', sample))
         
-    return bytes(pcm_data), plot_data
+    return bytes(pcm_data)
 
-def decode_audio_exact(wav_bytes: bytes) -> str:
-    """Ses dosyasını sıfır hatayla çözerek orijinal metni verir"""
+def decode_audio_digital(wav_bytes: bytes) -> str:
+    """Dijital ses verisinden orijinal metni %100 hatasız çözer"""
     if len(wav_bytes) < 44:
         return "Geçersiz ses dosyası!"
     
-    samples_per_byte = 100
+    samples_per_byte = 50
     raw_audio = wav_bytes[44:]
     
     samples = []
@@ -76,24 +68,20 @@ def decode_audio_exact(wav_bytes: bytes) -> str:
     
     for b_idx in range(total_bytes):
         chunk = samples[b_idx * samples_per_byte : (b_idx + 1) * samples_per_byte]
-        
-        # Sesteki tepe noktalarından frekans ve bayt tespiti
-        crossings = sum(1 for i in range(len(chunk)-1) if (chunk[i] >= 0 and chunk[i+1] < 0) or (chunk[i] < 0 and chunk[i+1] >= 0))
-        freq_est = (crossings * 8000) / (2 * len(chunk))
-        
-        b_val = int(round((freq_est - 300) / 5))
+        avg_val = sum(chunk) // len(chunk)
+        b_val = int((avg_val / 200) + 128)
         b_val = max(0, min(255, b_val))
         recovered_bytes.append(b_val)
         
     decrypted = process_bytes(bytes(recovered_bytes))
     try:
         return decrypted.decode('utf-8')
-    except:
-        return "Şifre çözülemedi (Format hatası)."
+    except Exception:
+        return "Şifre çözülemedi."
 
 # Başlık
 st.title("🎙️ MathCrypt Audio Studio Pro")
-st.caption("Kesin Sonuç Veren Ses Şifreleme ve Çözme Sistemi")
+st.caption("Kayıpsız Ses Şifreleme ve Çözme Sistemi")
 
 tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
 
@@ -102,17 +90,15 @@ tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "📝 Me
 # ---------------------------------------------------------
 with tabs[0]:
     st.subheader("🔊 Metni Sese Çevir ve İndir")
-    audio_in = st.text_area("Sese dönüştürülecek metin:", value="Test Mesajı 123", key="a_in")
+    audio_in = st.text_area("Sese dönüştürülecek metin:", value="Gizli Mesaj 2026", key="a_in")
     
     if st.button("🔊 Ses Sinyali Üret ve İndirme Bağlantısı Hazırla", key="b_gen"):
         if audio_in.strip():
-            enc_bytes = process_bytes(audio_in.encode('utf-8'))
-            wav_data, plot_vals = generate_audio_exact(enc_bytes)
+            wav_data = generate_audio_digital(audio_in)
             
             st.success("Ses Sinyali Hazır!")
             st.audio(wav_data, format="audio/wav")
             
-            # İNDİRME BUTONU
             st.download_button(
                 label="📥 Ses Dosyasını İndir (.wav)",
                 data=wav_data,
@@ -120,7 +106,6 @@ with tabs[0]:
                 mime="audio/wav",
                 key="d_wav"
             )
-            st.line_chart(plot_vals[:200])
 
 # ---------------------------------------------------------
 # TAB 2: SES ÇÖZÜCÜ
@@ -132,7 +117,7 @@ with tabs[1]:
     if st.button("🔍 Sesi Metne Dönüştür", key="b_dec"):
         if uploaded_sound is not None:
             sound_bytes = uploaded_sound.read()
-            result_text = decode_audio_exact(sound_bytes)
+            result_text = decode_audio_digital(sound_bytes)
             
             st.success("Çözme İşlemi Tamamlandı!")
             st.markdown("**Çözülen Metin:**")
