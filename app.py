@@ -5,11 +5,11 @@ st.set_page_config(
     page_title="KÜKNER Pİ × 1923 Şifreleme", page_icon="🔐", layout="centered"
 )
 
-st.title("🔐 KÜKNER Pİ × 1923 Akış Şifreleme Uygulaması")
+st.title("🔐 KÜKNER Pİ × 1923 Şifreleme ve Çözme")
 st.markdown(
     """
-Bu uygulama, irrasyonel **Pi ($\pi$)** tabanlı hassas bölme ve **1923** çarpanıyla 
-iteratif olarak büyüyen kesintisiz, tekrarsız akış (keystream) mantığını kullanır.
+Bu uygulama, irrasyonel **Pi ($\pi$)** tabanlı ve **1923** çarpanıyla 
+çalışan akış şifreleme sistemidir.
 """
 )
 
@@ -21,7 +21,6 @@ precision = st.sidebar.slider(
     max_value=3000,
     value=1000,
     step=100,
-    help="Virgülden sonra kaç basamak hassasiyetle hesaplanacağını belirler.",
 )
 multiplier = st.sidebar.number_input(
     "Çarpan (Anahtar)", value=1923, step=1, format="%d"
@@ -30,10 +29,8 @@ multiplier = st.sidebar.number_input(
 
 # KÜKNER Pİ × 1923 Akış Üreteci Fonksiyonu
 def generate_kukner_keystream(digits, mult):
-  # Hassasiyet sınırını ayarla
   getcontext().prec = digits + 10
 
-  # Chudnovsky algoritması ile yüksek hassasiyetli Pi hesaplama
   C = 426880 * Decimal(10005).sqrt()
   K = Decimal(6)
   M = Decimal(1)
@@ -49,8 +46,6 @@ def generate_kukner_keystream(digits, mult):
     K += 12
 
   pi_val = C / S
-
-  # KÜKNER Pİ × 1923 formül mantığı
   calculation_result = (Decimal(100) / pi_val) * Decimal(mult)
 
   str_val = str(calculation_result)
@@ -62,47 +57,39 @@ def generate_kukner_keystream(digits, mult):
   return fractional_part
 
 
-# Arayüz Sekmeleri
-tab1, tab2 = st.tabs(["🔒 Metin Şifreleme / Çözme", "📊 Akış ve Entropi İncelemesi"])
+# İşlem Modu Seçimi (Şifrele veya Çöz)
+islem_tipi = st.radio(
+    "İşlem Türünü Seçin:", ["🔒 Metni Şifrele", "🔓 Şifreyi Çöz"]
+)
 
-with tab1:
-  st.subheader("KÜKNER Pİ × 1923 ile Metin Şifreleme")
-  text_input = st.text_area(
-      "Şifrelenecek Metni Girin:",
-      placeholder="Gizli mesajınızı buraya yazın...",
-  )
+input_text = st.text_area(
+    "İşlem Yapılacak Metin:",
+    placeholder="Metninizi buraya yapıştırın...",
+)
 
-  if st.button("Mesajı İşle / Şifrele"):
-    if text_input:
-      with st.spinner("KÜKNER Pİ × 1923 anahtar akışı üretiliyor..."):
-        keystream = generate_kukner_keystream(precision, multiplier)
+if st.button("İşlemi Başlat"):
+  if input_text:
+    keystream = generate_kukner_keystream(precision, multiplier)
+    sonuc_chars = []
 
-        # Stream Cipher (XOR / Karakter Kaydırma) mantığı
-        encrypted_chars = []
-        for i, char in enumerate(text_input):
-          key_char_code = int(keystream[i % len(keystream)])
-          encrypted_code = ord(char) + key_char_code
-          encrypted_chars.append(chr(encrypted_code))
+    for i, char in enumerate(input_text):
+      key_char_code = int(keystream[i % len(keystream)])
 
-        encrypted_text = "".join(encrypted_chars)
+      if islem_tipi == "🔒 Metni Şifrele":
+        # Şifrelerken anahtar değerini ekle
+        yeni_kod = ord(char) + key_char_code
+      else:
+        # Şifre çözerken anahtar değerini çıkar
+        yeni_kod = ord(char) - key_char_code
 
-      st.success("Şifreleme Başarıyla Tamamlandı!")
-      st.text_area(
-          "Şifrelenmiş Çıktı (Ciphertext):",
-          value=encrypted_text,
-          height=100,
-      )
+      sonuc_chars.append(chr(yeni_kod))
+
+    sonuc_metin = "".join(sonuc_chars)
+
+    st.success("İşlem Başarıyla Tamamlandı!")
+    if islem_tipi == "🔒 Metni Şifrele":
+      st.text_area("Şifrelenmiş Çıktı:", value=sonuc_metin, height=100)
     else:
-      st.warning("Lütfen şifrelenecek bir metin girin.")
-
-with tab2:
-  st.subheader("Üretilen Sayısal Akış Verisi")
-  st.markdown(
-      "Aşağıda **KÜKNER Pİ × 1923** algoritmasıyla üretilen tekrarsız ve"
-      " kesintisiz küsurat dizisinin bir kısmı yer almaktadır:"
-  )
-
-  if st.button("Akış Verisini Göster"):
-    stream = generate_kukner_keystream(precision, multiplier)
-    st.code(stream[:1000], language="text")
-    st.info(f"Toplam üretilen güvenli basamak uzunluğu: {len(stream)} karakter.")
+      st.text_area("Çözülmüş Orijinal Metin:", value=sonuc_metin, height=100)
+  else:
+    st.warning("Lütfen metin alanını boş bırakmayın.")
