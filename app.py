@@ -16,6 +16,25 @@ st.markdown("""
 # 100 / 3⁵ × 19 Matematiksel Sabiti
 FACTOR = (100 / (3 ** 5)) * 19  # ≈ 7.818930041152263
 
+# Standart Ebced Değerleri Tablosu
+EBCED_TABLOSU = {
+    'ا': 1, 'أ': 1, 'إ': 1, 'آ': 1, 'ب': 2, 'ج': 3, 'د': 4, 'ه': 5, 'و': 6, 'ز': 7, 
+    'ح': 8, 'ط': 9, 'ي': 10, 'ى': 10, 'ك': 20, 'ل': 30, 'م': 40, 'ن': 50, 'س': 60, 
+    'ع': 70, 'ف': 80, 'ص': 90, 'ق': 100, 'ر': 200, 'ش': 300, 'ت': 400, 'ث': 500, 
+    'خ': 600, 'ذ': 700, 'ض': 800, 'ظ': 900, 'غ': 1000, 'پ': 2, 'چ': 3, 'ژ': 7, 'گ': 20
+}
+
+def ebced_hesapla(metin: str):
+    """Girilen metindeki Arapça/Osmanlıca harflerin Ebced değerini hesaplar."""
+    toplam = 0
+    detaylar = []
+    for harf in metin:
+        if harf in EBCED_TABLOSU:
+            deger = EBCED_TABLOSU[harf]
+            toplam += deger
+            detaylar.append(f"{harf}: {deger}")
+    return toplam, detaylar
+
 def process_bytes(data: bytes) -> bytes:
     """Tekil XOR döngüsü ile simetrik byte işleme"""
     if not data: return b""
@@ -35,7 +54,6 @@ def generate_audio_digital(text_data: str):
     audio_samples = []
     
     for b in raw_bytes:
-        # Genlik paketleme: Bayt değerini 16-bit PCM aralığına tam eşle
         val = int((b - 128) * 200)
         for _ in range(samples_per_byte):
             audio_samples.append(val)
@@ -81,9 +99,9 @@ def decode_audio_digital(wav_bytes: bytes) -> str:
 
 # Başlık
 st.title("🎙️ MathCrypt Audio Studio Pro")
-st.caption("Kayıpsız Ses Şifreleme ve Çözme Sistemi")
+st.caption("Kayıpsız Ses Şifreleme, Çözme ve Ebced Analiz Sistemi")
 
-tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
+tabs = st.tabs(["🔊 Ses Üretici & İndir", "🎙️ Ses Çözücü", "🕌 Ebced Hesabı", "📝 Metin Şifreleme", "📁 Dosya Kilitleme"])
 
 # ---------------------------------------------------------
 # TAB 1: SES ÜRET VE İNDİR
@@ -126,9 +144,32 @@ with tabs[1]:
             st.warning("Lütfen bir .wav dosyası yükleyin.")
 
 # ---------------------------------------------------------
-# TAB 3: METİN ŞİFRELEME
+# TAB 3: EBCED HESABI (YENİ MODÜL)
 # ---------------------------------------------------------
 with tabs[2]:
+    st.subheader("🕌 Ebced Değeri Hesaplayıcı")
+    st.write("Arapça veya Osmanlıca metinlerin sayısal Ebced karşılığını hesaplar.")
+    
+    ebced_in = st.text_area("Ebced hesabı yapılacak Arapça/Osmanlıca metni girin:", value="علي", key="e_in")
+    
+    if st.button("🧮 Ebced Değerini Hesapla", key="b_ebced"):
+        if ebced_in.strip():
+            toplam_skor, harf_detaylari = ebced_hesapla(ebced_in)
+            
+            st.success(f"Toplam Ebced Değeri: {toplam_skor}")
+            
+            if harf_detaylari:
+                st.markdown("**Harf Analizi:**")
+                st.write(", ".join(harf_detaylari))
+            else:
+                st.warning("Metinde geçerli bir Arapça/Osmanlıca karakter bulunamadı.")
+        else:
+            st.warning("Lütfen bir metin girin.")
+
+# ---------------------------------------------------------
+# TAB 4: METİN ŞİFRELEME
+# ---------------------------------------------------------
+with tabs[3]:
     st.subheader("📝 Standart Metin Şifreleme")
     txt_in = st.text_area("Metin:", key="t_in")
     if st.button("Şifrele", key="b_txt") and txt_in.strip():
@@ -136,9 +177,9 @@ with tabs[2]:
         st.code(base64.b64encode(processed).decode('utf-8'), language="text")
 
 # ---------------------------------------------------------
-# TAB 4: DOSYA KİLİTLEME
+# TAB 5: DOSYA KİLİTLEME
 # ---------------------------------------------------------
-with tabs[3]:
+with tabs[4]:
     st.subheader("📁 Dosya Kilitleme")
     uploaded = st.file_uploader("Dosya Seç", key="f_up")
     if st.button("Kilitle/Çöz", key="b_f") and uploaded:
