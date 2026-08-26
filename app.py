@@ -1,41 +1,32 @@
 import math
 import sys
 
-class PerfectFormulaEncrypter:
+class BulletproofEncrypter:
     def __init__(self):
-        # İstediğiniz formül: 100 / Pi * 1923
+        # Sizin belirttiğiniz temel formül: 100 / Pi * 1923
         self.base_constant = (100 / math.pi) * 1923
 
     def _get_shift(self, index: int) -> int:
         """
-        Formülü sürekli çarparak her karakter için benzersiz kaydırma üretir.
+        Formülü sürekli çarparak her karakter için dinamik kaydırma üretir.
         """
-        # Formülü index'e göre sürekli çarpıp güncelliyoruz
+        # Sürekli çarpım mantığı
         current_val = (self.base_constant * (index + 1)) * 1.618033
-        return int(current_val) % 94  # Yazdırılabilir ASCII karakter aralığı için
+        return int(current_val) % 94
 
     def encrypt(self, plaintext: str) -> str:
-        """
-        Metni formüle göre şifreler.
-        """
         encrypted_chars = []
         for i, char in enumerate(plaintext):
             code = ord(char)
-            # Sadece normal karakterleri şifrele (32 ile 126 arası yazdırılabilir ASCII)
             if 32 <= code <= 126:
                 shift = self._get_shift(i)
-                # 94 karakterlik aralıkta kaydırma yapıyoruz
                 new_code = 32 + (code - 32 + shift) % 94
                 encrypted_chars.append(chr(new_code))
             else:
                 encrypted_chars.append(char)
-                
         return "".join(encrypted_chars)
 
     def decrypt(self, ciphertext: str) -> str:
-        """
-        Şifrelenmiş metni formülü tersine işleterek çözer.
-        """
         decrypted_chars = []
         for i, char in enumerate(ciphertext):
             code = ord(char)
@@ -45,39 +36,47 @@ class PerfectFormulaEncrypter:
                 decrypted_chars.append(chr(new_code))
             else:
                 decrypted_chars.append(char)
-                
         return "".join(decrypted_chars)
 
     def copy_to_clipboard(self, text: str):
         """
-        Harici kütüphane gerektirmeden panoya kopyalama (Windows/Mac/Linux uyumlu).
+        Hata vermeyen, güvenli panoya kopyalama denemesi.
         """
         try:
-            from tkinter import Tk
-            r = Tk()
-            r.withdraw()
-            r.clipboard_clear()
-            r.clipboard_append(text)
-            r.update()
-            r.destroy()
-            print("[Bilgi] Şifreli metin başarıyla panoya kopyalandı! (Ctrl+V yapabilirsiniz)")
+            # Önce pyperclip deneyelim
+            import pyperclip
+            pyperclip.copy(text)
+            print("[Bilgi] Şifreli metin panoya kopyalandı!")
+            return
         except Exception:
-            print("[Bilgi] Panoya kopyalanamadı ama şifreli metin aşağıdadır.")
+            pass
 
-# --- UYGULAMAYI ÇALIŞTIRMA ---
+        try:
+            # Olmazsa Tkinter deneyelim
+            from tkinter import Tk
+            root = Tk()
+            root.withdraw()
+            root.clipboard_clear()
+            root.clipboard_append(text)
+            root.update()
+            root.destroy()
+            print("[Bilgi] Şifreli metin panoya kopyalandı!")
+            return
+        except Exception:
+            # Hiçbiri çalışmazsa program çökmez, sadece bilgi verir
+            print("[Bilgi] Pano kopyalama bu ortamda desteklenmiyor, şifreli metin ekrandadır.")
+
+# --- TEST KODU ---
 if __name__ == "__main__":
-    app = PerfectFormulaEncrypter()
+    app = BulletproofEncrypter()
     
     girdi = "AAAAA"
     print(f"Orijinal Girdi : {girdi}")
     
-    # Şifreleme
     sifreli = app.encrypt(girdi)
     print(f"Şifreli Çıktı  : {sifreli}")
     
-    # Panoya Kopyala
     app.copy_to_clipboard(sifreli)
     
-    # Çözüm Testi
     cozulmus = app.decrypt(sifreli)
     print(f"Çözülen Metin  : {cozulmus}")
