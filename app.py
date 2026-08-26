@@ -1,65 +1,76 @@
-import os
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+import math
+
 try:
     import pyperclip
     CLIPBOARD_AVAILABLE = True
 except ImportError:
     CLIPBOARD_AVAILABLE = False
 
-class SecureEncrypter:
-    def __init__(self, key: bytes = None):
-        self.key = key if key else AESGCM.generate_key(bit_length=256)
+class FormulaStreamEncrypter:
+    def __init__(self):
+        # Temel formülümüz: 100 / Pi * 1923
+        self.base_constant = (100 / math.pi) * 1923
 
-    def encrypt(self, plaintext: str, copy_to_clipboard: bool = True) -> dict:
+    def _generate_stream(self, length: int) -> list:
         """
-        Düz metni AES-GCM ile şifreler ve isteğe bağlı olarak panoya kopyalar.
+        Formülü sürekli çarparak her karakter için benzersiz bir kaydırma (shift) dizisi üretir.
         """
-        aesgcm = AESGCM(self.key)
-        nonce = os.urandom(12)
-        ciphertext = aesgcm.encrypt(nonce, plaintext.encode('utf-8'), None)
+        shifts = []
+        current_val = self.base_constant
         
-        # Hex formatına çeviriyoruz ki kolayca saklanabilsin
-        encrypted_hex = ciphertext.hex()
+        for i in range(length):
+            # Sürekli çarpım ve dönüşüm mantığı
+            current_val = (current_val * 1.618033) % 997 # Altın oran ve modül ile akışı çeşitlendiriyoruz
+            shift = int(current_val + i) % 256
+            shifts.append(shift)
+            
+        return shifts
+
+    def encrypt(self, plaintext: str, copy_to_clipboard: bool = True) -> str:
+        """
+        Düz metni formül tabanlı akış şifrelemesi ile şifreler.
+        """
+        shifts = self._generate_stream(len(plaintext))
+        encrypted_chars = []
         
-        # Panoya kopyalama işlemi
+        for char, shift in zip(plaintext, shifts):
+            # Karakterin ASCII değerine formülden gelen dinamik kaydırmayı ekle
+            encrypted_char = chr((ord(char) + shift) % 256)
+            encrypted_chars.append(encrypted_char)
+            
+        ciphertext = "".join(encrypted_chars)
+        
         if copy_to_clipboard and CLIPBOARD_AVAILABLE:
-            pyperclip.copy(encrypted_hex)
-            print("[Bilgi] Şifreli metin panoya kopyalandı! (Ctrl+V yapabilirsiniz)")
-        elif copy_to_clipboard and not CLIPBOARD_AVAILABLE:
-            print("[Uyarı] 'pyperclip' kütüphanesi bulunamadı. Panoya kopyalanamadı.")
-            print("Yüklemek için: pip install pyperclip")
+            pyperclip.copy(ciphertext)
+            print("[Bilgi] Formül şifreli metin panoya kopyalandı! (Ctrl+V yapabilirsiniz)")
+            
+        return ciphertext
 
-        return {
-            "nonce": nonce.hex(),
-            "ciphertext": encrypted_hex,
-            "key": self.key.hex()
-        }
-
-    def decrypt(self, nonce_hex: str, ciphertext_hex: str, key_hex: str) -> str:
+    def decrypt(self, ciphertext: str) -> str:
         """
-        Şifrelenmiş veriyi güvenli bir şekilde çözer.
+        Şifrelenmiş metni aynı formül akışını kullanarak çözer.
         """
-        aesgcm = AESGCM(bytes.fromhex(key_hex))
-        nonce = bytes.fromhex(nonce_hex)
-        ciphertext = bytes.fromhex(ciphertext_hex)
+        shifts = self._generate_stream(len(ciphertext))
+        decrypted_chars = []
         
-        try:
-            decrypted_data = aesgcm.decrypt(nonce, ciphertext, None)
-            return decrypted_data.decode('utf-8')
-        except Exception:
-            raise ValueError("Şifre çözme başarısız! Veri kurcalanmış veya anahtar yanlış.")
+        for char, shift in zip(ciphertext, shifts):
+            # Şifreleme adımlarını tersine çevir
+            decrypted_char = chr((ord(char) - shift) % 256)
+            decrypted_chars.append(decrypted_char)
+            
+        return "".join(decrypted_chars)
 
 # --- TEST ETME VAKTİ ---
 if __name__ == "__main__":
-    encrypter = SecureEncrypter()
+    app = FormulaStreamEncrypter()
     
     girdi = "AAAAA"
-    print(f"Düz Metin: {girdi}")
+    print(f"Orijinal Metin: {girdi}")
     
     # Şifrele ve panoya kopyala
-    sonuc = encrypter.encrypt(girdi, copy_to_clipboard=True)
-    print(f"Şifreli Çıktı: {sonuc['ciphertext']}")
+    sifreli_hali = app.encrypt(girdi, copy_to_clipboard=True)
+    print(f"Şifreli Çıktı: {repr(sifreli_hali)}")
     
-    # Çözüm Testi
-    cozulmus = encrypter.decrypt(sonuc['nonce'], sonuc['ciphertext'], sonuc['key'])
-    print(f"Çözülen Metin: {cozulmus}")
+    # Geri Çöz
+    cozulmus_hali = app.decrypt(sifreli_hali)
+    print(f"Çözülen Metin: {cozulmus_hali}")
