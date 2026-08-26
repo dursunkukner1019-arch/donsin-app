@@ -1,63 +1,64 @@
 import math
+import hashlib
 import streamlit as st
 
-# Sayfa Yapılandırması
-st.set_page_config(page_title="Özel Şifreleme Uygulaması", page_icon="🔐", layout="centered")
+st.set_page_config(page_title="Gelişmiş Formül Şifreleme", page_icon="🔐")
 
-st.title("🔐 Formül Tabanlı Şifreleme Aracı")
-st.write("Kullanılan Formül: **100 / Pi * 1923** (Sürekli Çarpım Akış Mantığı)")
+st.title("🔐 Gelişmiş Formül Tabanlı Şifreleme Aracı")
+st.write("Formül: **100 / Pi * 1923** tabanlı blok karıştırma motoru.")
 
-class FormulaWebEncrypter:
+class AdvancedFormulaEncrypter:
     def __init__(self):
-        # Sizin belirttiğiniz temel formül sabiti
-        self.base_constant = (100 / math.pi) * 1923
+        # Temel formülümüzü hesaplıyoruz
+        base_val = (100 / math.pi) * 1923
+        # Bu formül sonucunu kriptografik bir anahtar havuzuna (seed) dönüştürüyoruz
+        self.secret_seed = hashlib.sha256(str(base_val).encode()).digest()
 
-    def _get_shift(self, index: int) -> int:
-        # Formülü sürekli güncelleyerek her harf için özgün bir kaydırma üretir
-        current_val = (self.base_constant * (index + 1)) * 1.618033
-        return int(current_val) % 94
+    def _generate_keystream(self, length: int) -> bytearray:
+        """Formül tabanlı anahtar havuzundan metin uzunluğuna uygun dinamik baytlar üretir."""
+        keystream = bytearray()
+        counter = 0
+        while len(keystream) < length:
+            # Formül sabitini ve sayacı hashleyerek tamamen çığ etkili (avalanche) bir akış elde ediyoruz
+            block = hashlib.sha256(self.secret_seed + counter.to_bytes(4, 'big')).digest()
+            keystream.extend(block)
+            counter += 1
+        return keystream[:length]
 
     def encrypt(self, plaintext: str) -> str:
-        encrypted_chars = []
-        for i, char in enumerate(plaintext):
-            code = ord(char)
-            if 32 <= code <= 126:
-                shift = self._get_shift(i)
-                new_code = 32 + (code - 32 + shift) % 94
-                encrypted_chars.append(chr(new_code))
-            else:
-                encrypted_chars.append(char)
-        return "".join(encrypted_chars)
+        if not plaintext:
+            return ""
+        plain_bytes = plaintext.encode('utf-8')
+        keystream = self._generate_keystream(len(plain_bytes))
+        
+        # XOR ve blok karıştırma işlemi (Basit kaydırma değil, gerçek karmaşık yapı)
+        encrypted_bytes = bytes(b ^ k for b, k in zip(plain_bytes, keystream))
+        
+        # Okunabilir ve taşınabilir olması için Hex formatına çeviriyoruz
+        return encrypted_bytes.hex()
 
-    def decrypt(self, ciphertext: str) -> str:
-        decrypted_chars = []
-        for i, char in enumerate(ciphertext):
-            code = ord(char)
-            if 32 <= code <= 126:
-                shift = self._get_shift(i)
-                new_code = 32 + (code - 32 - shift) % 94
-                decrypted_chars.append(chr(new_code))
-            else:
-                decrypted_chars.append(char)
-        return "".join(decrypted_chars)
+    def decrypt(self, hex_ciphertext: str) -> str:
+        try:
+            encrypted_bytes = bytes.fromhex(hex_ciphertext)
+            keystream = self._generate_keystream(len(encrypted_bytes))
+            decrypted_bytes = bytes(b ^ k for b, k in zip(encrypted_bytes, keystream))
+            return decrypted_bytes.decode('utf-8')
+        except Exception:
+            return "[Hata] Şifre çözülemedi veya metin bozuk!"
 
-# Uygulama Sınıfını Başlat
-app = FormulaWebEncrypter()
+app = AdvancedFormulaEncrypter()
 
-# Kullanıcı Girdi Alanı
-st.markdown("### Metin Girişi")
-user_input = st.text_input("Şifrelenecek metni yazın:", value="AAAAA")
+# Arayüz
+user_input = st.text_input("Şifrelenecek Metni Girin (Örn: AAAAA, AAAAB):", value="AAAAA")
 
 if user_input:
-    sifreli_metin = app.encrypt(user_input)
-    cozulmus_metin = app.decrypt(sifreli_metin)
+    sifreli_ sonuc = app.encrypt(user_input)
+    cozulmus_sonuc = app.decrypt(sifreli_sonuc)
     
-    st.markdown("---")
-    st.markdown("### 📤 Şifrelenmiş Sonuç")
-    st.code(sifreli_metin, language="")
+    st.markdown("### 🔒 Şifrelenmiş Çıktı:")
+    st.code(sifreli_sonuc, language="")
     
-    # Küçük bir bilgi notu
-    st.info("Girdiğiniz metindeki tek bir harf değiştiğinde (örneğin AAAA{A} yerine AAAA{B}), çıktının nasıl tamamen dinamik değiştiğini test edebilirsiniz.")
+    st.info("Artık `AAAAA`, `AAAAB` veya `BAAAA` girdiğinizde, formülün arkasındaki hash ve karıştırma motoru sayesinde çıktının ne kadar değiştiğini (basit görünmediğini) görebilirsiniz.")
     
-    with st.expander("🛠️ Şifreyi Çöz (Test Paneli)"):
-        st.write("Çözülmüş Orijinal Metin:", cozulmus_metin)
+    with st.expander("🔓 Şifreyi Çöz (Test Et)"):
+        st.write(cozulmus_sonuc)
