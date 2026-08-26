@@ -1,8 +1,14 @@
 import math
+import streamlit as st
 
-class SimpleEncrypter:
+# Sayfa ayarları
+st.set_page_config(page_title="Özel Şifreleme Uygulaması", page_icon="🔐")
+
+st.title("🔐 Formül Tabanlı Şifreleme Uygulaması")
+st.write("Formül: **100 / Pi * 1923** kullanılarak oluşturulmuştur.")
+
+class StreamlitEncrypter:
     def __init__(self):
-        # Sizin formülünüz: 100 / Pi * 1923
         self.base_constant = (100 / math.pi) * 1923
 
     def _get_shift(self, index: int) -> int:
@@ -33,20 +39,20 @@ class SimpleEncrypter:
                 decrypted_chars.append(char)
         return "".join(decrypted_chars)
 
-# --- UYGULAMA BAŞLATICI ---
-if __name__ == "__main__":
-    app = SimpleEncrypter()
-    
-    girdi = "AAAAA"
-    print("--- ŞİFRELEME TESTİ BAŞLADI ---")
-    print(f"Orijinal Girdi : {girdi}")
-    
-    sifreli = app.encrypt(girdi)
-    print(f"Şifreli Çıktı  : {sifreli}")
-    
+app = StreamlitEncrypter()
+
+# Kullanıcı Arayüzü (Girdi Alanı)
+metin = st.text_input("Şifrelenecek Metni Girin:", "AAAAA")
+
+if metin:
+    sifreli = app.encrypt(metin)
     cozulmus = app.decrypt(sifreli)
-    print(f"Çözülen Metin  : {cozulmus}")
-    print("--------------------------------")
     
-    # Konsolun hemen kapanmaması için kullanıcıdan girdi bekletiyoruz
-    input("Uygulama tamamlandı. Çıkmak için Enter tuşuna basın...")
+    st.subheader("Sonuçlar:")
+    st.code(sifreli, language="")
+    
+    st.success("Şifreleme başarıyla tamamlandı!")
+    
+    # Çözülmüş hali kontrol için
+    with st.expander("Şifreyi Çöz (Test Et)"):
+        st.write(cozulmus)
