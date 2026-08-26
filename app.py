@@ -1,17 +1,19 @@
 import math
 import streamlit as st
 
-# Sayfa ayarları
-st.set_page_config(page_title="Özel Şifreleme Uygulaması", page_icon="🔐")
+# Sayfa Yapılandırması
+st.set_page_config(page_title="Özel Şifreleme Uygulaması", page_icon="🔐", layout="centered")
 
-st.title("🔐 Formül Tabanlı Şifreleme Uygulaması")
-st.write("Formül: **100 / Pi * 1923** kullanılarak oluşturulmuştur.")
+st.title("🔐 Formül Tabanlı Şifreleme Aracı")
+st.write("Kullanılan Formül: **100 / Pi * 1923** (Sürekli Çarpım Akış Mantığı)")
 
-class StreamlitEncrypter:
+class FormulaWebEncrypter:
     def __init__(self):
+        # Sizin belirttiğiniz temel formül sabiti
         self.base_constant = (100 / math.pi) * 1923
 
     def _get_shift(self, index: int) -> int:
+        # Formülü sürekli güncelleyerek her harf için özgün bir kaydırma üretir
         current_val = (self.base_constant * (index + 1)) * 1.618033
         return int(current_val) % 94
 
@@ -39,20 +41,23 @@ class StreamlitEncrypter:
                 decrypted_chars.append(char)
         return "".join(decrypted_chars)
 
-app = StreamlitEncrypter()
+# Uygulama Sınıfını Başlat
+app = FormulaWebEncrypter()
 
-# Kullanıcı Arayüzü (Girdi Alanı)
-metin = st.text_input("Şifrelenecek Metni Girin:", "AAAAA")
+# Kullanıcı Girdi Alanı
+st.markdown("### Metin Girişi")
+user_input = st.text_input("Şifrelenecek metni yazın:", value="AAAAA")
 
-if metin:
-    sifreli = app.encrypt(metin)
-    cozulmus = app.decrypt(sifreli)
+if user_input:
+    sifreli_metin = app.encrypt(user_input)
+    cozulmus_metin = app.decrypt(sifreli_metin)
     
-    st.subheader("Sonuçlar:")
-    st.code(sifreli, language="")
+    st.markdown("---")
+    st.markdown("### 📤 Şifrelenmiş Sonuç")
+    st.code(sifreli_metin, language="")
     
-    st.success("Şifreleme başarıyla tamamlandı!")
+    # Küçük bir bilgi notu
+    st.info("Girdiğiniz metindeki tek bir harf değiştiğinde (örneğin AAAA{A} yerine AAAA{B}), çıktının nasıl tamamen dinamik değiştiğini test edebilirsiniz.")
     
-    # Çözülmüş hali kontrol için
-    with st.expander("Şifreyi Çöz (Test Et)"):
-        st.write(cozulmus)
+    with st.expander("🛠️ Şifreyi Çöz (Test Paneli)"):
+        st.write("Çözülmüş Orijinal Metin:", cozulmus_metin)
