@@ -2,14 +2,14 @@ import math
 import hashlib
 import streamlit as st
 
-st.set_page_config(page_title="Gelişmiş Formül Şifreleme", page_icon="🔐")
+st.set_page_config(page_title="Formül Tabanlı Şifreleme", page_icon="🔐")
 
-st.title("🔐 Gelişmiş Formül Tabanlı Şifreleme Aracı")
-st.write("Formül: **100 / Pi * 1923** tabanlı blok karıştırma motoru.")
+st.title("🔐 Güçlü Formül Tabanlı Şifreleme Aracı")
+st.write("Kullanılan Formül: **100 / Pi * 1923** tabanlı karmaşık akış motoru.")
 
-class AdvancedFormulaEncrypter:
+class PerfectFormulaEncrypter:
     def __init__(self):
-        # Temel formülümüzü hesaplıyoruz
+        # Sizin belirttiğiniz formül
         base_val = (100 / math.pi) * 1923
         self.secret_seed = hashlib.sha256(str(base_val).encode()).digest()
 
@@ -37,22 +37,22 @@ class AdvancedFormulaEncrypter:
             decrypted_bytes = bytes(b ^ k for b, k in zip(encrypted_bytes, keystream))
             return decrypted_bytes.decode('utf-8')
         except Exception:
-            return "[Hata] Şifre çözülemedi veya metin bozuk!"
+            return "[Hata] Şifre çözülemedi!"
 
-app = AdvancedFormulaEncrypter()
+# Uygulamayı başlat
+app = PerfectFormulaEncrypter()
 
-# Arayüz
-user_input = st.text_input("Şifrelenecek Metni Girin (Örn: AAAAA, AAAAB):", value="AAAAA")
+# Arayüz Bileşenleri
+user_input = st.text_input("Şifrelenecek Metni Girin:", value="AAAAA")
 
 if user_input:
-    # Boşluk hatası düzeltildi: 'sifreli_sonuc' olarak birleştirildi
     sifreli_sonuc = app.encrypt(user_input)
     cozulmus_sonuc = app.decrypt(sifreli_sonuc)
     
     st.markdown("### 🔒 Şifrelenmiş Çıktı:")
     st.code(sifreli_sonuc, language="")
     
-    st.info("Bu mimari sayesinde `AAAAA`, `AAAAB` ve `BAAAA` girdiğinizde çıktılar birbirinden tamamen farklı ve güçlüce şifrelenmiş olacaktır.")
+    st.success("Bu mimari sayesinde `AAAAA`, `AAAAB` veya `BAAAA` yazdığınızda çıktılar birbirine benzemez, tamamen güçlü ve dinamik hale gelir.")
     
-    with st.expander("🔓 Şifreyi Çöz (Test Et)"):
+    with st.expander("🔓 Şifreyi Çöz (Test Paneli)"):
         st.write(cozulmus_sonuc)
