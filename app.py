@@ -1,95 +1,65 @@
-from decimal import Decimal, getcontext
-import streamlit as st
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+try:
+    import pyperclip
+    CLIPBOARD_AVAILABLE = True
+except ImportError:
+    CLIPBOARD_AVAILABLE = False
 
-st.set_page_config(
-    page_title="KÜKNER Pİ × 1923 Şifreleme", page_icon="🔐", layout="centered"
-)
+class SecureEncrypter:
+    def __init__(self, key: bytes = None):
+        self.key = key if key else AESGCM.generate_key(bit_length=256)
 
-st.title("🔐 KÜKNER Pİ × 1923 Şifreleme ve Çözme")
-st.markdown(
-    """
-Bu uygulama, irrasyonel **Pi ($\pi$)** tabanlı ve **1923** çarpanıyla 
-çalışan akış şifreleme sistemidir.
-"""
-)
+    def encrypt(self, plaintext: str, copy_to_clipboard: bool = True) -> dict:
+        """
+        Düz metni AES-GCM ile şifreler ve isteğe bağlı olarak panoya kopyalar.
+        """
+        aesgcm = AESGCM(self.key)
+        nonce = os.urandom(12)
+        ciphertext = aesgcm.encrypt(nonce, plaintext.encode('utf-8'), None)
+        
+        # Hex formatına çeviriyoruz ki kolayca saklanabilsin
+        encrypted_hex = ciphertext.hex()
+        
+        # Panoya kopyalama işlemi
+        if copy_to_clipboard and CLIPBOARD_AVAILABLE:
+            pyperclip.copy(encrypted_hex)
+            print("[Bilgi] Şifreli metin panoya kopyalandı! (Ctrl+V yapabilirsiniz)")
+        elif copy_to_clipboard and not CLIPBOARD_AVAILABLE:
+            print("[Uyarı] 'pyperclip' kütüphanesi bulunamadı. Panoya kopyalanamadı.")
+            print("Yüklemek için: pip install pyperclip")
 
-# Kenar Çubuğu Ayarları
-st.sidebar.header("Algoritma Parametreleri")
-precision = st.sidebar.slider(
-    "Pi Hassasiyeti (Basamak Sayısı)",
-    min_value=100,
-    max_value=3000,
-    value=1000,
-    step=100,
-)
-multiplier = st.sidebar.number_input(
-    "Çarpan (Anahtar)", value=1923, step=1, format="%d"
-)
+        return {
+            "nonce": nonce.hex(),
+            "ciphertext": encrypted_hex,
+            "key": self.key.hex()
+        }
 
+    def decrypt(self, nonce_hex: str, ciphertext_hex: str, key_hex: str) -> str:
+        """
+        Şifrelenmiş veriyi güvenli bir şekilde çözer.
+        """
+        aesgcm = AESGCM(bytes.fromhex(key_hex))
+        nonce = bytes.fromhex(nonce_hex)
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        
+        try:
+            decrypted_data = aesgcm.decrypt(nonce, ciphertext, None)
+            return decrypted_data.decode('utf-8')
+        except Exception:
+            raise ValueError("Şifre çözme başarısız! Veri kurcalanmış veya anahtar yanlış.")
 
-# KÜKNER Pİ × 1923 Akış Üreteci Fonksiyonu
-def generate_kukner_keystream(digits, mult):
-  getcontext().prec = digits + 10
-
-  C = 426880 * Decimal(10005).sqrt()
-  K = Decimal(6)
-  M = Decimal(1)
-  L = Decimal(13591409)
-  X = Decimal(1)
-  S = L
-
-  for k in range(1, int(digits / 14) + 1):
-    M = M * (K**3 - 16 * K) / (Decimal(k) ** 3)
-    L += 545140134
-    X *= -262537412640768000
-    S += (M * L) / X
-    K += 12
-
-  pi_val = C / S
-  calculation_result = (Decimal(100) / pi_val) * Decimal(mult)
-
-  str_val = str(calculation_result)
-  if "." in str_val:
-    fractional_part = str_val.split(".")[1]
-  else:
-    fractional_part = str_val
-
-  return fractional_part
-
-
-# İşlem Modu Seçimi (Şifrele veya Çöz)
-islem_tipi = st.radio(
-    "İşlem Türünü Seçin:", ["🔒 Metni Şifrele", "🔓 Şifreyi Çöz"]
-)
-
-input_text = st.text_area(
-    "İşlem Yapılacak Metin:",
-    placeholder="Metninizi buraya yapıştırın...",
-)
-
-if st.button("İşlemi Başlat"):
-  if input_text:
-    keystream = generate_kukner_keystream(precision, multiplier)
-    sonuc_chars = []
-
-    for i, char in enumerate(input_text):
-      key_char_code = int(keystream[i % len(keystream)])
-
-      if islem_tipi == "🔒 Metni Şifrele":
-        # Şifrelerken anahtar değerini ekle
-        yeni_kod = ord(char) + key_char_code
-      else:
-        # Şifre çözerken anahtar değerini çıkar
-        yeni_kod = ord(char) - key_char_code
-
-      sonuc_chars.append(chr(yeni_kod))
-
-    sonuc_metin = "".join(sonuc_chars)
-
-    st.success("İşlem Başarıyla Tamamlandı!")
-    if islem_tipi == "🔒 Metni Şifrele":
-      st.text_area("Şifrelenmiş Çıktı:", value=sonuc_metin, height=100)
-    else:
-      st.text_area("Çözülmüş Orijinal Metin:", value=sonuc_metin, height=100)
-  else:
-    st.warning("Lütfen metin alanını boş bırakmayın.")
+# --- TEST ETME VAKTİ ---
+if __name__ == "__main__":
+    encrypter = SecureEncrypter()
+    
+    girdi = "AAAAA"
+    print(f"Düz Metin: {girdi}")
+    
+    # Şifrele ve panoya kopyala
+    sonuc = encrypter.encrypt(girdi, copy_to_clipboard=True)
+    print(f"Şifreli Çıktı: {sonuc['ciphertext']}")
+    
+    # Çözüm Testi
+    cozulmus = encrypter.decrypt(sonuc['nonce'], sonuc['ciphertext'], sonuc['key'])
+    print(f"Çözülen Metin: {cozulmus}")
