@@ -1,16 +1,11 @@
 import math
-import sys
 
-class BulletproofEncrypter:
+class SimpleEncrypter:
     def __init__(self):
-        # Sizin belirttiğiniz temel formül: 100 / Pi * 1923
+        # Sizin formülünüz: 100 / Pi * 1923
         self.base_constant = (100 / math.pi) * 1923
 
     def _get_shift(self, index: int) -> int:
-        """
-        Formülü sürekli çarparak her karakter için dinamik kaydırma üretir.
-        """
-        # Sürekli çarpım mantığı
         current_val = (self.base_constant * (index + 1)) * 1.618033
         return int(current_val) % 94
 
@@ -38,45 +33,20 @@ class BulletproofEncrypter:
                 decrypted_chars.append(char)
         return "".join(decrypted_chars)
 
-    def copy_to_clipboard(self, text: str):
-        """
-        Hata vermeyen, güvenli panoya kopyalama denemesi.
-        """
-        try:
-            # Önce pyperclip deneyelim
-            import pyperclip
-            pyperclip.copy(text)
-            print("[Bilgi] Şifreli metin panoya kopyalandı!")
-            return
-        except Exception:
-            pass
-
-        try:
-            # Olmazsa Tkinter deneyelim
-            from tkinter import Tk
-            root = Tk()
-            root.withdraw()
-            root.clipboard_clear()
-            root.clipboard_append(text)
-            root.update()
-            root.destroy()
-            print("[Bilgi] Şifreli metin panoya kopyalandı!")
-            return
-        except Exception:
-            # Hiçbiri çalışmazsa program çökmez, sadece bilgi verir
-            print("[Bilgi] Pano kopyalama bu ortamda desteklenmiyor, şifreli metin ekrandadır.")
-
-# --- TEST KODU ---
+# --- UYGULAMA BAŞLATICI ---
 if __name__ == "__main__":
-    app = BulletproofEncrypter()
+    app = SimpleEncrypter()
     
     girdi = "AAAAA"
+    print("--- ŞİFRELEME TESTİ BAŞLADI ---")
     print(f"Orijinal Girdi : {girdi}")
     
     sifreli = app.encrypt(girdi)
     print(f"Şifreli Çıktı  : {sifreli}")
     
-    app.copy_to_clipboard(sifreli)
-    
     cozulmus = app.decrypt(sifreli)
     print(f"Çözülen Metin  : {cozulmus}")
+    print("--------------------------------")
+    
+    # Konsolun hemen kapanmaması için kullanıcıdan girdi bekletiyoruz
+    input("Uygulama tamamlandı. Çıkmak için Enter tuşuna basın...")
