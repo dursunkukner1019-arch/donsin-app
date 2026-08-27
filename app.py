@@ -3,41 +3,34 @@ import hashlib
 import hmac
 import secrets
 import base64
-import math
 from decimal import Decimal, getcontext
-from pathlib import Path
-
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 # ============================================================
 # KÜKNER CRYPTO STUDIO PRO
 # ============================================================
 #
-# MATHEMATICAL CORE
+# KÜKNER MATEMATİKSEL FORMÜLÜ
 #
-#                 100
-#        K(n) =  ------ × 19^n
-#                  π
-#
-# The mathematical sequence is NOT used as a raw cipher.
-# It is transformed into cryptographic material and combined
-# with a random salt before deriving the AES-256-GCM key.
+#              100
+# K(n) =  ----------- × 19^n
+#                π
 #
 # ============================================================
 
 
 APP_NAME = "KÜKNER Crypto Studio Pro"
-VERSION = "2.0"
+VERSION = "4.0"
 
 MAGIC = b"KUKNER19"
-VERSION_BYTE = b"\x02"
+VERSION_BYTE = b"\x04"
 
 SALT_SIZE = 32
-NONCE_SIZE = 12
+NONCE_SIZE = 16
+TAG_SIZE = 32
 KEY_SIZE = 32
 
-# High precision for the mathematical engine.
+# Yüksek hassasiyet
 getcontext().prec = 300
 
 PI = Decimal(
@@ -47,103 +40,84 @@ PI = Decimal(
 
 
 # ============================================================
-# 1. KÜKNER 19 MATHEMATICAL ENGINE
+# KÜKNER FORMÜLÜ
 # ============================================================
 
-def kukner_formula(n: int) -> Decimal:
+def kukner_formula(n):
     """
-    K(n) = (100 / pi) * 19^n
+    K(n) = (100 / π) × 19^n
     """
-    return (Decimal(100) / PI) * (Decimal(19) ** n)
+
+    return (
+        Decimal(100) / PI
+    ) * (
+        Decimal(19) ** n
+    )
 
 
-def fractional_part(value: Decimal) -> Decimal:
-    """
-    Returns only the fractional part.
-    """
-    return value - value.to_integral_value()
+# ============================================================
+# VİRGÜLDEN SONRAKİ BASAMAKLAR
+# ============================================================
+
+def fractional_digits(value, digits=100):
+
+    text = format(value, "f")
+
+    if "." not in text:
+        return "0"
+
+    return text.split(".", 1)[1][:digits]
 
 
-def kukner_decimal_stream(
-    password: str,
-    iterations: int = 256
-) -> bytes:
-    """
-    Generates deterministic cryptographic material from
-    the user's formula.
+# ============================================================
+# KÜKNER 19 ENGINE
+# ============================================================
 
-    K(n) = 100/pi * 19^n
-
-    The decimal/fractional information is hashed instead
-    of being directly converted into characters.
-    """
+def kukner_engine(password, rounds=128):
 
     password_bytes = password.encode("utf-8")
 
-    engine = hashlib.sha512()
-
-    # Mathematical seed
-    seed = hashlib.sha512(
+    state = hashlib.sha512(
         b"KUKNER-19-ENGINE" +
         password_bytes
     ).digest()
 
-    engine.update(seed)
-
-    for n in range(1, iterations + 1):
+    for n in range(1, rounds + 1):
 
         value = kukner_formula(n)
 
-        fraction = fractional_part(value)
-
-        # Keep a stable high-precision decimal representation.
-        decimal_string = format(
-            fraction,
-            "f"
+        fraction = fractional_digits(
+            value,
+            100
         )
 
         block = (
             n.to_bytes(8, "big") +
-            decimal_string.encode("ascii")
+            fraction.encode("ascii")
         )
 
-        block_hash = hashlib.sha512(
-            b"KUKNER19-BLOCK" +
-            seed +
+        state = hashlib.sha512(
+            b"KUKNER19" +
+            state +
             block
         ).digest()
 
-        engine.update(block_hash)
-
-        # Feedback mechanism
-        seed = hashlib.sha512(
-            seed +
-            block_hash +
-            n.to_bytes(8, "big")
-        ).digest()
-
-    return engine.digest()
+    return state
 
 
 # ============================================================
-# 2. ADDITIONAL 19 MIXING
+# 19 KATMANLI KARIŞTIRMA
 # ============================================================
 
-def kukner_19_mixer(
-    material: bytes,
-    rounds: int = 19
-) -> bytes:
-    """
-    Additional 19-round cryptographic mixing layer.
-    """
+def mix_19(data):
 
-    state = material
+    state = data
 
-    for i in range(1, rounds + 1):
+    for i in range(1, 20):
 
         state = hashlib.sha512(
             b"KUKNER-MIX-19" +
-            i.to_bytes(4, "big") +
+            i.to_bytes(2, "big") +
             state
         ).digest()
 
@@ -151,47 +125,38 @@ def kukner_19_mixer(
 
 
 # ============================================================
-# 3. KEY DERIVATION
+# ANAHTAR ÜRETİMİ
 # ============================================================
 
-def derive_key(
-    password: str,
-    salt: bytes,
-    iterations: int = 256
-) -> bytes:
+def derive_key(password, salt):
 
     password_bytes = password.encode("utf-8")
 
-    # Your mathematical formula
-    mathematical_material = kukner_decimal_stream(
+    # Senin matematiksel formülün
+    mathematical_data = kukner_engine(
         password,
-        iterations
+        128
     )
 
-    # Additional 19-round mixing
-    mixed = kukner_19_mixer(
-        mathematical_material,
-        19
+    # 19 katmanlı karıştırma
+    mixed_data = mix_19(
+        mathematical_data
     )
 
-    # Combine everything
-    combined = (
+    seed = (
         b"KUKNER-CRYPTO-STUDIO-PRO" +
         password_bytes +
         salt +
-        mathematical_material +
-        mixed
+        mathematical_data +
+        mixed_data
     )
 
-    # Final KDF
-    #
-    # PBKDF2 adds a conventional password-hardening layer.
-    #
+    # Paroladan güçlü anahtar türetme
     key = hashlib.pbkdf2_hmac(
         "sha512",
-        combined,
+        seed,
         salt,
-        300_000,
+        300000,
         dklen=KEY_SIZE
     )
 
@@ -199,10 +164,267 @@ def derive_key(
 
 
 # ============================================================
-# 4. PASSWORD STRENGTH
+# ŞİFRELEME AKIŞI
 # ============================================================
 
-def password_strength(password: str):
+def generate_keystream(key, nonce, length):
+
+    output = bytearray()
+
+    counter = 0
+
+    while len(output) < length:
+
+        block = hmac.new(
+            key,
+            (
+                b"KUKNER-STREAM" +
+                nonce +
+                counter.to_bytes(8, "big")
+            ),
+            hashlib.sha256
+        ).digest()
+
+        output.extend(block)
+
+        counter += 1
+
+    return bytes(
+        output[:length]
+    )
+
+
+# ============================================================
+# XOR
+# ============================================================
+
+def xor_bytes(data, stream):
+
+    return bytes(
+        a ^ b
+        for a, b in zip(data, stream)
+    )
+
+
+# ============================================================
+# METİN / VERİ ŞİFRELE
+# ============================================================
+
+def encrypt_bytes(data, password):
+
+    # Her şifrelemede yeni salt
+    salt = secrets.token_bytes(
+        SALT_SIZE
+    )
+
+    # Her şifrelemede yeni nonce
+    nonce = secrets.token_bytes(
+        NONCE_SIZE
+    )
+
+    key = derive_key(
+        password,
+        salt
+    )
+
+    keystream = generate_keystream(
+        key,
+        nonce,
+        len(data)
+    )
+
+    ciphertext = xor_bytes(
+        data,
+        keystream
+    )
+
+    # Başlık
+    header = (
+        MAGIC +
+        VERSION_BYTE +
+        salt +
+        nonce
+    )
+
+    # HMAC bütünlük kontrolü
+    tag = hmac.new(
+        key,
+        header + ciphertext,
+        hashlib.sha256
+    ).digest()
+
+    package = (
+        header +
+        ciphertext +
+        tag
+    )
+
+    return package
+
+
+# ============================================================
+# VERİ ŞİFRE ÇÖZ
+# ============================================================
+
+def decrypt_bytes(package, password):
+
+    minimum_length = (
+        len(MAGIC) +
+        1 +
+        SALT_SIZE +
+        NONCE_SIZE +
+        TAG_SIZE
+    )
+
+    if len(package) < minimum_length:
+
+        raise ValueError(
+            "Şifreli veri eksik veya bozuk."
+        )
+
+    # MAGIC kontrolü
+    if package[:len(MAGIC)] != MAGIC:
+
+        raise ValueError(
+            "Bu veri KÜKNER formatında değil."
+        )
+
+    position = len(MAGIC)
+
+    version = package[
+        position:
+        position + 1
+    ]
+
+    position += 1
+
+    if version != VERSION_BYTE:
+
+        raise ValueError(
+            "Desteklenmeyen KÜKNER sürümü."
+        )
+
+    # Salt
+    salt = package[
+        position:
+        position + SALT_SIZE
+    ]
+
+    position += SALT_SIZE
+
+    # Nonce
+    nonce = package[
+        position:
+        position + NONCE_SIZE
+    ]
+
+    position += NONCE_SIZE
+
+    # Ciphertext + tag
+    encrypted_part = package[position:]
+
+    ciphertext = encrypted_part[:-TAG_SIZE]
+
+    received_tag = encrypted_part[-TAG_SIZE:]
+
+    key = derive_key(
+        password,
+        salt
+    )
+
+    header = (
+        MAGIC +
+        VERSION_BYTE +
+        salt +
+        nonce
+    )
+
+    expected_tag = hmac.new(
+        key,
+        header + ciphertext,
+        hashlib.sha256
+    ).digest()
+
+    # Önce bütünlük kontrolü
+    if not hmac.compare_digest(
+        received_tag,
+        expected_tag
+    ):
+
+        raise ValueError(
+            "Şifre çözülemedi. "
+            "Parola yanlış veya veri değiştirilmiş."
+        )
+
+    keystream = generate_keystream(
+        key,
+        nonce,
+        len(ciphertext)
+    )
+
+    plaintext = xor_bytes(
+        ciphertext,
+        keystream
+    )
+
+    return plaintext
+
+
+# ============================================================
+# METİN ŞİFRELE
+# ============================================================
+
+def encrypt_text(text, password):
+
+    data = text.encode(
+        "utf-8"
+    )
+
+    package = encrypt_bytes(
+        data,
+        password
+    )
+
+    return base64.urlsafe_b64encode(
+        package
+    ).decode(
+        "ascii"
+    )
+
+
+# ============================================================
+# METİN ŞİFRE ÇÖZ
+# ============================================================
+
+def decrypt_text(encoded, password):
+
+    try:
+
+        package = base64.urlsafe_b64decode(
+            encoded.encode("ascii")
+        )
+
+    except Exception:
+
+        raise ValueError(
+            "Şifreli metin geçerli değil."
+        )
+
+    plaintext = decrypt_bytes(
+        package,
+        password
+    )
+
+    return plaintext.decode(
+        "utf-8"
+    )
+
+
+# ============================================================
+# PAROLA GÜCÜ
+# ============================================================
+
+def password_strength(password):
 
     score = 0
 
@@ -215,16 +437,28 @@ def password_strength(password: str):
     if len(password) >= 16:
         score += 1
 
-    if any(c.islower() for c in password):
+    if any(
+        c.islower()
+        for c in password
+    ):
         score += 1
 
-    if any(c.isupper() for c in password):
+    if any(
+        c.isupper()
+        for c in password
+    ):
         score += 1
 
-    if any(c.isdigit() for c in password):
+    if any(
+        c.isdigit()
+        for c in password
+    ):
         score += 1
 
-    if any(not c.isalnum() for c in password):
+    if any(
+        not c.isalnum()
+        for c in password
+    ):
         score += 1
 
     if score <= 2:
@@ -240,199 +474,7 @@ def password_strength(password: str):
 
 
 # ============================================================
-# 5. ENCRYPT
-# ============================================================
-
-def encrypt_bytes(
-    data: bytes,
-    password: str
-) -> bytes:
-
-    salt = secrets.token_bytes(SALT_SIZE)
-
-    nonce = secrets.token_bytes(NONCE_SIZE)
-
-    key = derive_key(
-        password,
-        salt
-    )
-
-    aes = AESGCM(key)
-
-    ciphertext = aes.encrypt(
-        nonce,
-        data,
-        MAGIC
-    )
-
-    package = (
-        MAGIC +
-        VERSION_BYTE +
-        salt +
-        nonce +
-        ciphertext
-    )
-
-    return package
-
-
-# ============================================================
-# 6. DECRYPT
-# ============================================================
-
-def decrypt_bytes(
-    package: bytes,
-    password: str
-) -> bytes:
-
-    minimum_size = (
-        len(MAGIC) +
-        1 +
-        SALT_SIZE +
-        NONCE_SIZE +
-        16
-    )
-
-    if len(package) < minimum_size:
-        raise ValueError(
-            "Geçersiz veya bozuk KÜKNER şifreli veri."
-        )
-
-    if package[:len(MAGIC)] != MAGIC:
-        raise ValueError(
-            "Bu veri KÜKNER Crypto Studio Pro formatında değil."
-        )
-
-    position = len(MAGIC)
-
-    version = package[position:position + 1]
-    position += 1
-
-    if version != VERSION_BYTE:
-        raise ValueError(
-            "Desteklenmeyen KÜKNER veri sürümü."
-        )
-
-    salt = package[
-        position:
-        position + SALT_SIZE
-    ]
-
-    position += SALT_SIZE
-
-    nonce = package[
-        position:
-        position + NONCE_SIZE
-    ]
-
-    position += NONCE_SIZE
-
-    ciphertext = package[position:]
-
-    key = derive_key(
-        password,
-        salt
-    )
-
-    aes = AESGCM(key)
-
-    try:
-
-        plaintext = aes.decrypt(
-            nonce,
-            ciphertext,
-            MAGIC
-        )
-
-    except Exception:
-
-        raise ValueError(
-            "Şifre çözülemedi. Parola yanlış "
-            "veya veri değiştirilmiş olabilir."
-        )
-
-    return plaintext
-
-
-# ============================================================
-# 7. TEXT ENCRYPTION
-# ============================================================
-
-def encrypt_text(
-    text: str,
-    password: str
-) -> str:
-
-    package = encrypt_bytes(
-        text.encode("utf-8"),
-        password
-    )
-
-    return base64.urlsafe_b64encode(
-        package
-    ).decode("ascii")
-
-
-# ============================================================
-# 8. TEXT DECRYPTION
-# ============================================================
-
-def decrypt_text(
-    encoded: str,
-    password: str
-) -> str:
-
-    try:
-
-        package = base64.urlsafe_b64decode(
-            encoded.encode("ascii")
-        )
-
-    except Exception:
-
-        raise ValueError(
-            "Şifreli metin Base64 formatında değil."
-        )
-
-    plaintext = decrypt_bytes(
-        package,
-        password
-    )
-
-    return plaintext.decode("utf-8")
-
-
-# ============================================================
-# 9. HEX / HASH INFORMATION
-# ============================================================
-
-def sha512_hex(data: bytes) -> str:
-
-    return hashlib.sha512(data).hexdigest()
-
-
-def calculate_formula_preview():
-
-    values = []
-
-    for n in range(1, 11):
-
-        value = kukner_formula(n)
-
-        values.append({
-            "n": n,
-            "K(n)": format(value, ".40E"),
-            "Virgül sonrası": format(
-                fractional_part(value),
-                ".30f"
-            )
-        })
-
-    return values
-
-
-# ============================================================
-# 10. UI
+# STREAMLIT AYARLARI
 # ============================================================
 
 st.set_page_config(
@@ -442,55 +484,47 @@ st.set_page_config(
 )
 
 
-# ------------------------------------------------------------
-# HEADER
-# ------------------------------------------------------------
+# ============================================================
+# BAŞLIK
+# ============================================================
 
-st.title("🔐 KÜKNER Crypto Studio Pro")
+st.title(
+    "🔐 KÜKNER Crypto Studio Pro"
+)
 
 st.caption(
-    f"Matematiksel çekirdek: 100 ÷ π × 19ⁿ  |  "
-    f"Sürüm {VERSION}"
+    "KÜKNER 19 Engine • "
+    "100 ÷ π × 19ⁿ"
 )
 
 
-st.markdown(
-    """
-    ### KÜKNER 19 Engine
-
-    **K(n) = (100 / π) × 19ⁿ**
-
-    Matematiksel dizi, kriptografik anahtar üretim
-    katmanına dahil edilir.
-    """
-)
-
-
-# ------------------------------------------------------------
-# SIDEBAR
-# ------------------------------------------------------------
+# ============================================================
+# MENÜ
+# ============================================================
 
 with st.sidebar:
 
-    st.header("⚙️ Sistem")
+    st.header(
+        "⚙️ KÜKNER CRYPTO"
+    )
 
     mode = st.radio(
-        "İşlem",
+        "İşlem seçin",
         [
             "🔒 Metin Şifrele",
             "🔓 Metin Çöz",
-            "📁 Dosya Şifrele",
-            "📂 Dosya Çöz",
             "🧮 19 Engine"
         ]
     )
 
     st.divider()
 
-    st.write("### 🔐 Güvenlik")
+    st.markdown(
+        "### 🔐 Sistem"
+    )
 
     st.write(
-        "AES-256-GCM"
+        "KÜKNER 19 Engine"
     )
 
     st.write(
@@ -502,19 +536,28 @@ with st.sidebar:
     )
 
     st.write(
-        "KÜKNER 19 Engine"
+        "HMAC-SHA256"
+    )
+
+    st.write(
+        "Rastgele Salt + Nonce"
     )
 
 
 # ============================================================
-# PASSWORD INPUT
+# METİN ŞİFRELEME
 # ============================================================
 
-if mode != "🧮 19 Engine":
+if mode == "🔒 Metin Şifrele":
+
+    st.header(
+        "🔒 Metin Şifreleme"
+    )
 
     password = st.text_input(
-        "🔑 Anahtar / Parola",
-        type="password"
+        "🔑 Gizli Anahtar",
+        type="password",
+        placeholder="Güçlü bir parola girin"
     )
 
     if password:
@@ -524,43 +567,39 @@ if mode != "🧮 19 Engine":
         )
 
         st.progress(
-            min(score / 7, 1.0)
+            score / 7
         )
 
         st.caption(
             f"Parola gücü: **{strength}**"
         )
 
-
-# ============================================================
-# TEXT ENCRYPT
-# ============================================================
-
-if mode == "🔒 Metin Şifrele":
-
-    st.header("🔒 Metin Şifreleme")
-
     text = st.text_area(
-        "Metin",
-        height=300,
-        placeholder="Şifrelemek istediğiniz metni yazın..."
+        "Şifrelenecek Metin",
+        height=280,
+        placeholder=(
+            "Şifrelemek istediğiniz "
+            "metni buraya yazın..."
+        )
     )
 
     if st.button(
         "🔐 KÜKNER 19 İLE ŞİFRELE",
+        type="primary",
         use_container_width=True
     ):
 
         if not text:
 
             st.warning(
-                "Lütfen şifrelenecek metni girin."
+                "Lütfen metin girin."
             )
 
         elif len(password) < 12:
 
             st.warning(
-                "En az 12 karakterlik güçlü bir parola kullanın."
+                "En az 12 karakterlik "
+                "bir parola kullanın."
             )
 
         else:
@@ -571,40 +610,64 @@ if mode == "🔒 Metin Şifrele":
             )
 
             st.success(
-                "Şifreleme başarıyla tamamlandı."
+                "Şifreleme tamamlandı."
             )
 
-            st.text_area(
-                "Şifreli Metin",
+            st.markdown(
+                "### 🔐 Şifreli Metin"
+            )
+
+            # Streamlit'in code alanında
+            # otomatik KOPYALA düğmesi vardır.
+            st.code(
                 encrypted,
-                height=300
+                language=None
             )
 
             st.download_button(
                 "⬇️ Şifreli Metni Kaydet",
                 encrypted,
-                file_name="KUKNER19_ENCRYPTED.txt",
+                file_name=(
+                    "KUKNER19_ENCRYPTED.txt"
+                ),
                 mime="text/plain",
                 use_container_width=True
             )
 
+            st.info(
+                "Yukarıdaki kod alanındaki "
+                "📋 kopyalama düğmesini kullanabilirsiniz."
+            )
+
 
 # ============================================================
-# TEXT DECRYPT
+# METİN ŞİFRE ÇÖZME
 # ============================================================
 
 elif mode == "🔓 Metin Çöz":
 
-    st.header("🔓 Metin Şifre Çözme")
+    st.header(
+        "🔓 Metin Şifre Çözme"
+    )
+
+    password = st.text_input(
+        "🔑 Gizli Anahtar",
+        type="password",
+        placeholder="Şifreleme sırasında kullandığınız parola"
+    )
 
     encrypted = st.text_area(
         "Şifreli Metin",
-        height=300,
-        placeholder="KÜKNER şifreli metni buraya yapıştırın..."
+        height=280,
+        placeholder=(
+            "KÜKNER tarafından oluşturulan "
+            "şifreli metni buraya yapıştırın..."
+        )
     )
 
     if st.button(
         "🔓 ŞİFREYİ ÇÖZ",
+        type="primary",
         use_container_width=True
     ):
 
@@ -633,134 +696,25 @@ elif mode == "🔓 Metin Çöz":
                     "Şifre başarıyla çözüldü."
                 )
 
-                st.text_area(
-                    "Çözülen Metin",
+                st.markdown(
+                    "### 📄 Çözülen Metin"
+                )
+
+                # Bunun da kopyalama düğmesi vardır.
+                st.code(
                     result,
-                    height=300
-                )
-
-            except Exception as error:
-
-                st.error(
-                    str(error)
-                )
-
-
-# ============================================================
-# FILE ENCRYPTION
-# ============================================================
-
-elif mode == "📁 Dosya Şifrele":
-
-    st.header("📁 Dosya Şifreleme")
-
-    uploaded = st.file_uploader(
-        "Şifrelenecek dosyayı seçin"
-    )
-
-    if uploaded:
-
-        st.info(
-            f"Dosya: {uploaded.name}  |  "
-            f"{uploaded.size:,} byte"
-        )
-
-        if st.button(
-            "🔐 DOSYAYI ŞİFRELE",
-            use_container_width=True
-        ):
-
-            if len(password) < 12:
-
-                st.warning(
-                    "En az 12 karakterlik parola kullanın."
-                )
-
-            else:
-
-                data = uploaded.read()
-
-                encrypted = encrypt_bytes(
-                    data,
-                    password
-                )
-
-                output_name = (
-                    uploaded.name +
-                    ".kukner19"
-                )
-
-                st.success(
-                    "Dosya başarıyla şifrelendi."
+                    language=None
                 )
 
                 st.download_button(
-                    "⬇️ Şifreli Dosyayı İndir",
-                    encrypted,
-                    file_name=output_name,
-                    mime="application/octet-stream",
+                    "⬇️ Çözülen Metni Kaydet",
+                    result,
+                    file_name="KUKNER19_DECRYPTED.txt",
+                    mime="text/plain",
                     use_container_width=True
                 )
 
-
-# ============================================================
-# FILE DECRYPTION
-# ============================================================
-
-elif mode == "📂 Dosya Çöz":
-
-    st.header("📂 Dosya Şifre Çözme")
-
-    uploaded = st.file_uploader(
-        "KÜKNER şifreli dosyayı seçin",
-        type=["kukner19"]
-    )
-
-    if uploaded:
-
-        if st.button(
-            "🔓 DOSYAYI ÇÖZ",
-            use_container_width=True
-        ):
-
-            try:
-
-                encrypted_data = uploaded.read()
-
-                decrypted = decrypt_bytes(
-                    encrypted_data,
-                    password
-                )
-
-                original_name = uploaded.name
-
-                if original_name.endswith(
-                    ".kukner19"
-                ):
-
-                    original_name = (
-                        original_name[
-                            :-len(".kukner19")
-                        ]
-                    )
-
-                else:
-
-                    original_name += ".decrypted"
-
-                st.success(
-                    "Dosyanın şifresi çözüldü."
-                )
-
-                st.download_button(
-                    "⬇️ Çözülmüş Dosyayı İndir",
-                    decrypted,
-                    file_name=original_name,
-                    mime="application/octet-stream",
-                    use_container_width=True
-                )
-
-            except Exception as error:
+            except ValueError as error:
 
                 st.error(
                     str(error)
@@ -773,7 +727,9 @@ elif mode == "📂 Dosya Çöz":
 
 elif mode == "🧮 19 Engine":
 
-    st.header("🧮 KÜKNER 19 Mathematical Engine")
+    st.header(
+        "🧮 KÜKNER 19 Mathematical Engine"
+    )
 
     st.latex(
         r"""
@@ -781,45 +737,114 @@ elif mode == "🧮 19 Engine":
         """
     )
 
-    st.write(
-        "Formülün ilk 10 iterasyonu:"
+    st.markdown(
+        """
+        ### KÜKNER matematiksel çekirdeği
+
+        **100 ÷ π × 19ⁿ**
+
+        Sistem, formülün ürettiği yüksek hassasiyetli
+        matematiksel veriyi SHA-512 tabanlı anahtar
+        üretim zincirine dahil eder.
+        """
     )
 
-    data = calculate_formula_preview()
+    st.divider()
 
-    for item in data:
+    st.subheader(
+        "İlk 19 değer"
+    )
+
+    for n in range(1, 20):
+
+        value = kukner_formula(n)
 
         with st.expander(
-            f"n = {item['n']}"
+            f"n = {n}"
         ):
 
             st.write(
-                "K(n):"
+                "K(n) ="
             )
 
             st.code(
-                item["K(n)"]
+                format(
+                    value,
+                    ".70E"
+                ),
+                language=None
             )
 
             st.write(
-                "Virgül sonrası:"
+                "Virgülden sonraki basamaklar:"
             )
 
             st.code(
-                item["Virgül sonrası"]
+                fractional_digits(
+                    value,
+                    100
+                ),
+                language=None
             )
+
+    st.divider()
+
+    st.subheader(
+        "KÜKNER 19 işlem zinciri"
+    )
+
+    st.markdown(
+        """
+        **100 ÷ π × 19ⁿ**
+
+        ↓
+
+        Yüksek hassasiyetli matematiksel dizi
+
+        ↓
+
+        SHA-512
+
+        ↓
+
+        19 katmanlı karıştırma
+
+        ↓
+
+        Parola + rastgele salt
+
+        ↓
+
+        PBKDF2-HMAC-SHA512
+
+        ↓
+
+        KÜKNER anahtar üretimi
+
+        ↓
+
+        HMAC doğrulamalı şifreleme
+        """
+    )
+
+    st.info(
+        "Matematiksel formül KÜKNER 19 Engine'in "
+        "özgün bileşenidir. Şifreleme güvenliği için "
+        "formülün yanında standart kriptografik "
+        "hash/HMAC yapı taşları kullanılmıştır."
+    )
 
 
 # ============================================================
-# FOOTER
+# ALT BİLGİ
 # ============================================================
 
 st.divider()
 
 st.caption(
-    "KÜKNER Crypto Studio Pro — KÜKNER 19 Engine"
+    "KÜKNER Crypto Studio Pro"
 )
 
 st.caption(
-    "Matematiksel formül: K(n) = (100 / π) × 19ⁿ"
+    "K(n) = (100 / π) × 19ⁿ"
 )
