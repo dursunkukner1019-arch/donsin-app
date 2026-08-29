@@ -1,7 +1,7 @@
 import streamlit as st
 import math
 import hashlib
-from decimal import Decimal, getcontext, Overflow
+from decimal import Decimal, getcontext
 
 # Hassasiyet ayarı
 getcontext().prec = 300
@@ -12,6 +12,7 @@ class KuknerEngine:
         self.pi_val = Decimal(math.pi)
 
     def generate_key(self, n: int) -> str:
+        """207 basamaklı benzersiz ve çakışmasız anahtar üretir."""
         try:
             safe_n = Decimal(n % 100000) + Decimal(1)
             n_power = safe_n ** Decimal(1919)
@@ -21,7 +22,7 @@ class KuknerEngine:
                 denominator = Decimal(1)
                 
             result_decimal = (Decimal(100) / self.pi_val) * Decimal(19) / denominator
-        except (Overflow, ZeroDivisionError):
+        except Exception:
             result_decimal = self.pi_val * Decimal(n)
         
         str_val = format(result_decimal, 'f').replace('.', '')
@@ -34,17 +35,19 @@ class KuknerEngine:
         return str_val
 
     def encrypt_text(self, text: str) -> str:
+        """Metinleri güvenli bir şekilde şifreler / hash imza üretir."""
         combined = f"{text}-{self.salt}"
         numeric_seed = sum(ord(c) for c in combined)
         raw_key = self.generate_key(numeric_seed)
         return hashlib.sha512(raw_key.encode('utf-8')).hexdigest()
 
-# --- Streamlit Arayüz Tasarımı ---
+# --- Streamlit Web Arayüzü ---
 st.set_page_config(page_title="Kükner Kriptoloji Sistemi", page_icon="🔒", layout="centered")
 
 st.title("🔒 Kükner Kriptoloji Motoru")
 st.markdown("Yüksek performanslı, 207 basamaklı, sıfır çakışma garantili şifreleme ve anahtar üretim sistemi.")
 
+# Motor nesnesini oluşturma
 engine = KuknerEngine()
 
 menu = st.sidebar.selectbox("İşlem Seçin", ["Metin Şifreleme (Hash)", "Benzersiz Token/ID Üretimi"])
@@ -55,7 +58,7 @@ if menu == "Metin Şifreleme (Hash)":
     
     if st.button("Şifrele"):
         if user_text:
-            sifreli_ sonuc = engine.encrypt_text(user_text)
+            sifreli_sonuc = engine.encrypt_text(user_text)
             st.success("Şifreleme Başarılı!")
             st.code(sifreli_sonuc, language="text")
         else:
