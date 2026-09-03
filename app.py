@@ -1,18 +1,17 @@
 import streamlit as st
 import math
 import hashlib
-from Cryptodome.Cipher import AES
-from Cryptodome.Util.Padding import pad, unpad
+import base64
 
 # Sayfa Yapılandırması
-st.set_page_config(page_title="Kükner Kripto KDF Uygulaması", page_icon="🔒", layout="centered")
+st.set_page_config(page_title="Kükner Kripto KDF", page_icon="🔒", layout="centered")
 
-st.title("🔒 Kükner - Özel Matematiksel KDF & AES-256 Şifreleme")
-st.write("Bu uygulama, özel seri ve modüler matematik formüllerini kullanarak güvenli 256-bit AES anahtarları türetir ve verilerinizi şifreler.")
+st.title("🔒 Kükner - Özel Matematiksel KDF & Güvenli Şifreleme")
+st.write("Bu uygulama, ek harici kütüphane bağımlılığı olmaksızın, matematiksel formülünüzle 256-bit anahtar üretir ve verilerinizi güvenle şifreler.")
 
-# Yan Menü / Ayarlar
+# Yan Menü / Parametreler
 st.sidebar.header("Parametreler")
-n_val = st.sidebar.number_input("Matematiksel Parametre (n)", min_value=1, max_value=100000, value=19)
+n_val = st.sidebar.number_input("Matematiksel Parametre (n)", min_value=1.0, max_value=100000.0, value=19.0)
 terim_sayisi = st.sidebar.slider("Seri Terim Sayısı (Hassasiyet)", min_value=100, max_value=10000, value=1000, step=100)
 
 # Özel KDF Fonksiyonu
@@ -23,46 +22,74 @@ def ozel_kdf_uret(n, terim_sayisi):
         terim = (99 / 19.0) * ((pi / 19.0) ** (i % 10)) * (n / 19.0)
         toplam_deger += terim / (i ** 1.1)
     
-    ham_veri = ("KUKNER_WEB_APP::" + str(toplam_deger)).encode('utf-8')
+    ham_veri = ("KUKNER_PURE_PYTHON::" + str(toplam_deger)).encode('utf-8')
     return hashlib.sha256(ham_veri).digest() # 32 Byte / 256-bit anahtar
 
-# Sekmeler (Şifreleme / Çözme)
+# Güvenli Akış Şifreleme (XOR Counter Mode - Harici kütüphane gerektirmez)
+def sifrele_metin(text, key_bytes):
+    text_bytes = text.encode('utf-8')
+    output_bytes = bytearray()
+    block_size = 32
+    
+    for i in range(0, len(text_bytes), block_size):
+        chunk = text_bytes[i:i+block_size]
+        counter_input = key_bytes + i.to_bytes(4, 'big')
+        keystream_block = hashlib.sha256(counter_input).digest()
+        
+        for b_idx, b in enumerate(chunk):
+            output_bytes.append(b ^ keystream_block[b_idx])
+            
+    return base64.b64encode(output_bytes).decode('utf-8')
+
+def coz_metin(b64_encoded_str, key_bytes):
+    try:
+        encrypted_bytes = base64.b64decode(b64_encoded_str)
+        output_bytes = bytearray()
+        block_size = 32
+        
+        for i in range(0, len(encrypted_bytes), block_size):
+            chunk = encrypted_bytes[i:i+block_size]
+            counter_input = key_bytes + i.to_bytes(4, 'big')
+            keystream_block = hashlib.sha256(counter_input).digest()
+            
+            for b_idx, b in enumerate(chunk):
+                output_bytes.append(b ^ keystream_block[b_idx])
+                
+        return output_bytes.decode('utf-8')
+    except Exception:
+        return None
+
+# Sekmeler
 sekme1, sekme2 = st.tabs(["🔐 Şifreleme (Encrypt)", "🔓 Çözme (Decrypt)"])
 
 with sekme1:
     st.subheader("Metin Şifreleme")
-    gizli_mesaj = st.text_area("Şifrelenecek Gizli Metni Girin:", "Bu mesaj özel formülle korunmaktadır.")
+    gizli_mesaj = st.text_area("Şifrelenecek Gizli Metni Girin:", "Vazife Malullüğü ve Güvenli Veri Testi")
     
     if st.button("Veriyi Şifrele"):
         if gizli_mesaj:
             anahtar = ozel_kdf_uret(n_val, terim_sayisi)
-            iv = b'\x00' * 16  # Sabit Başlangıç Vektörü
-            
-            cipher = AES.new(anahtar, AES.MODE_CBC, iv)
-            sifreli_veri = cipher.encrypt(pad(gizli_mesaj.encode('utf-8'), AES.block_size))
+            sifreli_b64 = sifrele_metin(gizli_mesaj, anahtar)
             
             st.success("Şifreleme Başarılı!")
             st.text_input("Üretilen 256-bit Anahtar (Hex):", value=anahtar.hex())
-            st.text_area("Şifrelenmiş Veri (Hex - Kopyala ve Sakla):", value=sifreli_veri.hex())
+            st.text_area("Şifrelenmiş Veri (Kopyala ve Sakla):", value=sifreli_b64)
         else:
             st.warning("Lütfen şifrelenecek bir metin yazın.")
 
 with sekme2:
     st.subheader("Şifrelenmiş Veriyi Çözme")
-    sifreli_hex = st.text_area("Şifrelenmiş Hex Verisini Buraya Yapıştırın:")
+    sifreli_giris = st.text_area("Şifrelenmiş Veriyi Buraya Yapıştırın:")
     
     if st.button("Veriyi Çöz"):
-        if sifreli_hex:
-            try:
-                anahtar = ozel_kdf_uret(n_val, terim_sayisi)
-                iv = b'\x00' * 16
-                
-                cipher = AES.new(anahtar, AES.MODE_CBC, iv)
-                cozulen_veri = unpad(cipher.decrypt(bytes.fromhex(sifreli_hex)), AES.block_size).decode('utf-8')
-                
+        if sifreli_giris:
+            anahtar = ozel_kdf_uret(n_val, terim_sayisi)
+            cozulen_veri = coz_metin(sifreli_giris.strip(), anahtar)
+            
+            if cozulen_veri:
                 st.success("Çözme Başarılı!")
                 st.text_area("Orijinal Metin:", value=cozulen_veri)
-            except Exception as e:
-                st.error(f"Çözme başarısız! Parametreler (n veya terim sayısı) yanlış olabilir ya da veri bozuk. Hata: {e}")
+            else:
+                st.error("Çözme başarısız! Parametreler (n veya terim sayısı) yanlış ya da veri bozuk.")
         else:
-            st.warning("Lütfen çözülecek hex verisini girin.")
+            st.warning("Lütfen çözülecek veriyi girin.")
