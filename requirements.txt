@@ -1,2 +1,2 @@
-streamlit
-pandas
+streamlit==1.38.0
+pycryptodomex==3.20.0
