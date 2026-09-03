@@ -1,75 +1,68 @@
 import streamlit as st
 import math
 import hashlib
-from decimal import Decimal, getcontext
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad, unpad
 
-# Hassasiyet ayarı
-getcontext().prec = 300
+# Sayfa Yapılandırması
+st.set_page_config(page_title="Kükner Kripto KDF Uygulaması", page_icon="🔒", layout="centered")
 
-class KuknerEngine:
-    def __init__(self, salt: str = "KuknerSecure2026"):
-        self.salt = salt
-        self.pi_val = Decimal(math.pi)
+st.title("🔒 Kükner - Özel Matematiksel KDF & AES-256 Şifreleme")
+st.write("Bu uygulama, özel seri ve modüler matematik formüllerini kullanarak güvenli 256-bit AES anahtarları türetir ve verilerinizi şifreler.")
 
-    def generate_key(self, n: int) -> str:
-        """207 basamaklı benzersiz ve çakışmasız anahtar üretir."""
-        try:
-            safe_n = Decimal(n % 100000) + Decimal(1)
-            n_power = safe_n ** Decimal(1919)
-            denominator = self.pi_val ** n_power
-            
-            if denominator == 0 or denominator.is_infinite():
-                denominator = Decimal(1)
-                
-            result_decimal = (Decimal(100) / self.pi_val) * Decimal(19) / denominator
-        except Exception:
-            result_decimal = self.pi_val * Decimal(n)
-        
-        str_val = format(result_decimal, 'f').replace('.', '')
-        
-        if len(str_val) < 207:
-            str_val = str_val.ljust(207, '7')
-        else:
-            str_val = str_val[:207]
-            
-        return str_val
+# Yan Menü / Ayarlar
+st.sidebar.header("Parametreler")
+n_val = st.sidebar.number_input("Matematiksel Parametre (n)", min_value=1, max_value=100000, value=19)
+terim_sayisi = st.sidebar.slider("Seri Terim Sayısı (Hassasiyet)", min_value=100, max_value=10000, value=1000, step=100)
 
-    def encrypt_text(self, text: str) -> str:
-        """Metinleri güvenli bir şekilde şifreler / hash imza üretir."""
-        combined = f"{text}-{self.salt}"
-        numeric_seed = sum(ord(c) for c in combined)
-        raw_key = self.generate_key(numeric_seed)
-        return hashlib.sha512(raw_key.encode('utf-8')).hexdigest()
-
-# --- Streamlit Web Arayüzü ---
-st.set_page_config(page_title="Kükner Kriptoloji Sistemi", page_icon="🔒", layout="centered")
-
-st.title("🔒 Kükner Kriptoloji Motoru")
-st.markdown("Yüksek performanslı, 207 basamaklı, sıfır çakışma garantili şifreleme ve anahtar üretim sistemi.")
-
-# Motor nesnesini oluşturma
-engine = KuknerEngine()
-
-menu = st.sidebar.selectbox("İşlem Seçin", ["Metin Şifreleme (Hash)", "Benzersiz Token/ID Üretimi"])
-
-if menu == "Metin Şifreleme (Hash)":
-    st.subheader("Metin Şifreleme Alanı")
-    user_text = st.text_input("Şifrelenecek metni girin:")
+# Özel KDF Fonksiyonu
+def ozel_kdf_uret(n, terim_sayisi):
+    toplam_deger = 0.0
+    pi = math.pi
+    for i in range(1, terim_sayisi + 1):
+        terim = (99 / 19.0) * ((pi / 19.0) ** (i % 10)) * (n / 19.0)
+        toplam_deger += terim / (i ** 1.1)
     
-    if st.button("Şifrele"):
-        if user_text:
-            sifreli_sonuc = engine.encrypt_text(user_text)
+    ham_veri = ("KUKNER_WEB_APP::" + str(toplam_deger)).encode('utf-8')
+    return hashlib.sha256(ham_veri).digest() # 32 Byte / 256-bit anahtar
+
+# Sekmeler (Şifreleme / Çözme)
+sekme1, sekme2 = st.tabs(["🔐 Şifreleme (Encrypt)", "🔓 Çözme (Decrypt)"])
+
+with sekme1:
+    st.subheader("Metin Şifreleme")
+    gizli_mesaj = st.text_area("Şifrelenecek Gizli Metni Girin:", "Bu mesaj özel formülle korunmaktadır.")
+    
+    if st.button("Veriyi Şifrele"):
+        if gizli_mesaj:
+            anahtar = ozel_kdf_uret(n_val, terim_sayisi)
+            iv = b'\x00' * 16  # Sabit Başlangıç Vektörü
+            
+            cipher = AES.new(anahtar, AES.MODE_CBC, iv)
+            sifreli_veri = cipher.encrypt(pad(gizli_mesaj.encode('utf-8'), AES.block_size))
+            
             st.success("Şifreleme Başarılı!")
-            st.code(sifreli_sonuc, language="text")
+            st.text_input("Üretilen 256-bit Anahtar (Hex):", value=anahtar.hex())
+            st.text_area("Şifrelenmiş Veri (Hex - Kopyala ve Sakla):", value=sifreli_veri.hex())
         else:
-            st.warning("Lütfen geçerli bir metin girin.")
+            st.warning("Lütfen şifrelenecek bir metin yazın.")
 
-elif menu == "Benzersiz Token/ID Üretimi":
-    st.subheader("207 Basamaklı Token Üretici")
-    n_input = st.number_input("Sayısal Girdi (Seed) Değeri:", min_value=1, max_value=10000000, value=12345)
+with sekme2:
+    st.subheader("Şifrelenmiş Veriyi Çözme")
+    sifreli_hex = st.text_area("Şifrelenmiş Hex Verisini Buraya Yapıştırın:")
     
-    if st.button("Token Üret"):
-        token_sonuc = engine.generate_key(int(n_input))
-        st.success("Token Başarıyla Üretildi!")
-        st.text_area("207 Basamaklı Çıktı:", token_sonuc, height=150)
-        st.info(f"Toplam Basamak Uzunluğu: {len(token_sonuc)}")
+    if st.button("Veriyi Çöz"):
+        if sifreli_hex:
+            try:
+                anahtar = ozel_kdf_uret(n_val, terim_sayisi)
+                iv = b'\x00' * 16
+                
+                cipher = AES.new(anahtar, AES.MODE_CBC, iv)
+                cozulen_veri = unpad(cipher.decrypt(bytes.fromhex(sifreli_hex)), AES.block_size).decode('utf-8')
+                
+                st.success("Çözme Başarılı!")
+                st.text_area("Orijinal Metin:", value=cozulen_veri)
+            except Exception as e:
+                st.error(f"Çözme başarısız! Parametreler (n veya terim sayısı) yanlış olabilir ya da veri bozuk. Hata: {e}")
+        else:
+            st.warning("Lütfen çözülecek hex verisini girin.")
