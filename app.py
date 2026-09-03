@@ -7,12 +7,12 @@ import base64
 st.set_page_config(page_title="Kükner Kripto KDF", page_icon="🔒", layout="centered")
 
 st.title("🔒 Kükner - Özel Matematiksel KDF & Güvenli Şifreleme")
-st.write("Bu uygulama, matematiksel formülünüzle 256-bit anahtar üretir ve verilerinizi güvenle şifreler.")
+st.write("Bu uygulama, matematiksel formülünüzle 256-bit anahtar üretir ve verilerinizi güvenle şifreler/çözer.")
 
-# Yan Menü / Parametreler (Key parametreleri eklendi)
+# Yan Menü / Parametreler
 st.sidebar.header("Parametreler")
-n_val = st.sidebar.number_input("Matematiksel Parametre (n)", min_value=1.0, max_value=100000.0, value=19.0, key="sidebar_n_val")
-terim_sayisi = st.sidebar.slider("Seri Terim Sayısı (Hassasiyet)", min_value=100, max_value=10000, value=1000, step=100, key="sidebar_terim_sayisi")
+n_val = st.sidebar.number_input("Matematiksel Parametre (n)", min_value=1.0, max_value=100000.0, value=19.0, key="sb_n")
+terim_sayisi = st.sidebar.slider("Seri Terim Sayısı (Hassasiyet)", min_value=100, max_value=10000, value=1000, step=100, key="sb_terim")
 
 # Özel KDF Fonksiyonu
 def ozel_kdf_uret(n, terim_sayisi):
@@ -22,7 +22,7 @@ def ozel_kdf_uret(n, terim_sayisi):
         terim = (99 / 19.0) * ((pi / 19.0) ** (i % 10)) * (n / 19.0)
         toplam_deger += terim / (i ** 1.1)
     
-    ham_veri = ("KUKNER_PURE_PYTHON::" + str(toplam_deger)).encode('utf-8')
+    ham_veri = ("KUKNER_STABLE_FIX::" + str(toplam_deger)).encode('utf-8')
     return hashlib.sha256(ham_veri).digest() # 32 Byte / 256-bit anahtar
 
 # Güvenli Akış Şifreleme (XOR Counter Mode)
@@ -59,37 +59,36 @@ def coz_metin(b64_encoded_str, key_bytes):
     except Exception:
         return None
 
-# Sekmeler
-sekme1, sekme2 = st.tabs(["🔐 Şifreleme (Encrypt)", "🔓 Çözme (Decrypt)"])
+# --- 1. BÖLÜM: ŞİFRELEME ---
+st.markdown("---")
+st.subheader("🔐 1. Metin Şifreleme (Encrypt)")
+gizli_mesaj = st.text_area("Şifrelenecek Gizli Metni Girin:", "Vazife Malullüğü ve Güvenli Veri Testi", key="input_gizli_mesaj")
 
-with sekme1:
-    st.subheader("Metin Şifreleme")
-    gizli_mesaj = st.text_area("Şifrelenecek Gizli Metni Girin:", "Vazife Malullüğü ve Güvenli Veri Testi", key="input_gizli_mesaj")
-    
-    if st.button("Veriyi Şifrele", key="btn_sifrele_islem"):
-        if gizli_mesaj:
-            anahtar = ozel_kdf_uret(n_val, terim_sayisi)
-            sifreli_b64 = sifrele_metin(gizli_mesaj, anahtar)
-            
-            st.success("Şifreleme Başarılı!")
-            st.text_input("Üretilen 256-bit Anahtar (Hex):", value=anahtar.hex(), key="out_anahtar_hex")
-            st.text_area("Şifrelenmiş Veri (Kopyala ve Sakla):", value=sifreli_b64, key="out_sifreli_veri")
-        else:
-            st.warning("Lütfen şifrelenecek bir metin yazın.")
+if st.button("Veriyi Şifrele", key="btn_sifrele_islem"):
+    if gizli_mesaj:
+        anahtar = ozel_kdf_uret(n_val, terim_sayisi)
+        sifreli_b64 = sifrele_metin(gizli_mesaj, anahtar)
+        
+        st.success("Şifreleme Başarılı!")
+        st.text_input("Üretilen 256-bit Anahtar (Hex):", value=anahtar.hex(), key="out_anahtar_hex")
+        st.text_area("Şifrelenmiş Veri (Kopyala ve Sakla):", value=sifreli_b64, key="out_sifreli_veri")
+    else:
+        st.warning("Lütfen şifrelenecek bir metin yazın.")
 
-with sekme2:
-    st.subheader("Şifrelenmiş Veriyi Çözme")
-    sifreli_giris = st.text_area("Şifrelenmiş Veriyi Buraya Yapıştırın:", key="input_sifreli_coz")
-    
-    if st.button("Veriyi Çöz", key="btn_coz_islem"):
-        if sifreli_giris:
-            anahtar = ozel_kdf_uret(n_val, terim_sayisi)
-            cozulen_veri = coz_metin(sifreli_giris.strip(), anahtar)
-            
-            if cozulen_veri:
-                st.success("Çözme Başarılı!")
-                st.text_area("Orijinal Metin:", value=cozulen_veri, key="out_orijinal_metin")
-            else:
-                st.error("Çözme başarısız! Parametreler (n veya terim sayısı) yanlış ya da veri bozuk.")
+# --- 2. BÖLÜM: ÇÖZME ---
+st.markdown("---")
+st.subheader("🔓 2. Şifrelenmiş Veriyi Çözme (Decrypt)")
+sifreli_giris = st.text_area("Şifrelenmiş Veriyi Buraya Yapıştırın:", key="input_sifreli_coz")
+
+if st.button("Veriyi Çöz", key="btn_coz_islem"):
+    if sifreli_giris:
+        anahtar = ozel_kdf_uret(n_val, terim_sayisi)
+        cozulen_veri = coz_metin(sifreli_giris.strip(), anahtar)
+        
+        if cozulen_veri:
+            st.success("Çözme Başarılı!")
+            st.text_area("Orijinal Metin:", value=cozulen_veri, key="out_orijinal_metin")
         else:
-            st.warning("Lütfen çözülecek veriyi girin.")
+            st.error("Çözme başarısız! Parametreler (n veya terim sayısı) yanlış ya da veri bozuk.")
+    else:
+        st.warning("Lütfen çözülecek veriyi girin.")
